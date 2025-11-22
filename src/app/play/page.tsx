@@ -1563,12 +1563,11 @@ function PlayPageClient() {
     }
   };
 
- // 🚀 优化的集数变化处理（防抖 + 状态保护）
+  // 🚀 优化的集数变化处理（防抖 + 状态保护）
 useEffect(() => {
   // 🔥 标记正在切换集数（只在非换源时）
   if (!isSourceChangingRef.current) {
-    isEpisodeChangingRef.current = true;
-    // 🔑 立即重置 SkipController 触发标志，允许新集数自动跳过片头片尾
+    isEpisodeChangingRef.current = true; // 🔑 立即重置 SkipController 触发标志，允许新集数自动跳过片头片尾
     isSkipControllerTriggeredRef.current = false;
     videoEndedHandledRef.current = false;
     console.log('🔄 开始切换集数，重置自动跳过标志');
@@ -1594,7 +1593,6 @@ useEffect(() => {
   // 如果播放器已经存在且弹幕插件已加载，重新加载弹幕
   if (artPlayerRef.current && artPlayerRef.current.plugins?.artplayerPluginDanmuku) {
     console.log('🚀 集数变化，优化后重新加载弹幕');
-
     // 🔥 关键修复：立即清空当前弹幕，避免旧弹幕残留
     const plugin = artPlayerRef.current.plugins.artplayerPluginDanmuku;
     plugin.reset(); // 立即回收所有正在显示的弹幕DOM
@@ -1607,7 +1605,7 @@ useEffect(() => {
       isStop: artPlayerRef.current.plugins.artplayerPluginDanmuku.isStop,
       option: artPlayerRef.current.plugins.artplayerPluginDanmuku.option
     };
-    
+
     // 使用防抖处理弹幕重新加载
     episodeSwitchTimeoutRef.current = setTimeout(async () => {
       try {
@@ -1616,32 +1614,27 @@ useEffect(() => {
           console.warn('⚠️ 集数切换后弹幕插件不存在，跳过弹幕加载');
           return;
         }
-        
         const externalDanmu = await loadExternalDanmu(); // 这里会检查开关状态
         console.log('🔄 集数变化后外部弹幕加载结果:', externalDanmu);
-        
+
         // 再次确认插件状态
         if (artPlayerRef.current?.plugins?.artplayerPluginDanmuku) {
           const plugin = artPlayerRef.current.plugins.artplayerPluginDanmuku;
-          
           if (externalDanmu.length > 0) {
             console.log('✅ 向播放器插件重新加载弹幕数据:', externalDanmu.length, '条');
             plugin.load(externalDanmu);
-            
             // 恢复弹幕插件的状态
             if (danmuPluginStateRef.current) {
               if (!danmuPluginStateRef.current.isHide) {
                 plugin.show();
               }
             }
-            
             if (artPlayerRef.current) {
               artPlayerRef.current.notice.show = `已加载 ${externalDanmu.length} 条弹幕`;
             }
           } else {
             console.log('📭 集数变化后没有弹幕数据可加载');
             plugin.load(); // 不传参数，确保清空弹幕
-
             if (artPlayerRef.current) {
               artPlayerRef.current.notice.show = '暂无弹幕数据';
             }
@@ -1656,58 +1649,27 @@ useEffect(() => {
     }, 800); // 缩短延迟时间，提高响应性
   }
 
-  // 🚀 修正字幕检测逻辑：移除 1000ms 延迟，防止数据混乱和竞速问题
-  if (detail && currentEpisodeIndex !== null && artPlayerRef.current && videoUrl) {
-    console.log('🔄 集数变化,立即检测字幕...');
-
-    const autoLoadSubtitles = async () => {
-      const art = artPlayerRef.current;
-      if (!art) return;
-
-      // 构造可能存在的字幕文件 URL 列表
-      const filenamePrefix = `${detail.id}-${currentEpisodeIndex}`;
-      const urls = [
-        { url: videoUrl.replace(/\.mkv$/, '.chs.srt'), type: 'srt', filename: `${filenamePrefix}.chs.srt` },
-        { url: videoUrl.replace(/\.mkv$/, '.chs.ass'), type: 'ass', filename: `${filenamePrefix}.chs.ass` },
-        { url: videoUrl.replace(/\.mkv$/, '.chs.vtt'), type: 'vtt', filename: `${filenamePrefix}.chs.vtt` },
-      ];
-
-      const detectedSubtitles: { url: string; type: string; filename: string }[] = [];
-
-      // 异步检测文件是否存在
-      for (const sub of urls) {
-        try {
-          // @ts-ignore
-          await art.plugins.artplayerPluginSubtitleCheck.check(sub.url, sub.type); // 使用 ArtPlayer 的检测机制
-          detectedSubtitles.push(sub);
-          console.log(`✅ 检测到字幕文件: ${sub.filename}`);
-        } catch (e) {
-          // console.warn(`HEAD ${sub.url} failed.`, e);
+  // 🆕 集数变化时重新检测字幕
+  if (artPlayerRef.current && !isSourceChangingRef.current) {
+    // 立即执行字幕加载，确保视频URL已更新
+    console.log('🔄 集数变化,重新检测字幕...');
+    try {
+      const autoSubtitles = await autoLoadSubtitles(videoUrl);
+      if (autoSubtitles.length > 0) {
+        console.log('✅ 新集数检测到字幕:', autoSubtitles);
+        setLoadedSubtitleUrls(autoSubtitles); // 更新字幕 URL
+      } else {
+        console.log('📭 新集数未检测到字幕文件');
+        if (artPlayerRef.current) {
+          artPlayerRef.current.subtitle.show = false;
         }
       }
-
-      setLoadedSubtitleUrls(detectedSubtitles);
-
-      if (detectedSubtitles.length > 0) {
-        const firstSub = detectedSubtitles[0];
-        art.subtitle.switch(firstSub.url, { type: firstSub.type });
-        art.subtitle.show = true;
-        console.log(`✅ 已自动加载字幕: ${firstSub.filename}`);
-      } else {
-        art.subtitle.show = false;
-      }
-    };
-
-    // 确保在主视频加载后执行
-    artPlayerRef.current.once('ready', autoLoadSubtitles);
-    
-    // 如果播放器已经 ready，则直接执行
-    if (artPlayerRef.current.isReady) {
-      autoLoadSubtitles();
+    } catch (error) {
+      console.warn('⚠️ 集数切换后字幕检测失败:', error);
     }
   }
 
-}, [detail, currentEpisodeIndex, videoUrl, loadedSubtitleUrls, artPlayerRef.current]);
+}, [detail, currentEpisodeIndex, videoUrl]); // 添加 videoUrl 依赖
 
   // 进入页面时直接获取全部源信息
   useEffect(() => {
@@ -3391,7 +3353,43 @@ useEffect(() => {
     if (autoSubtitles.length > 0) {  
       console.log('✅ 检测到字幕文件:', autoSubtitles);  
         // 🆕 保存已加载的字幕 URL  
-      setLoadedSubtitleUrls(autoSubtitles); 
+      setLoadedSubtitleUrls(autoSubtitles);      
+      // 如果有多个字幕,添加切换选项  
+      artPlayerRef.current.setting.add({  
+        html: '外部字幕',  
+        tooltip: autoSubtitles.length > 0 ? `当前:${autoSubtitles[0].filename}` : '当前:关闭',  
+        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>',  
+        selector: [  
+          {  
+            html: '关闭',  
+            value: 'off',  
+          },  
+          ...autoSubtitles.map((sub) => ({  
+            html: sub.filename,  
+            value: sub.url,  
+            subtitle: {  
+              url: sub.url,  
+              type: sub.type,  
+            },  
+          })),  
+        ],  
+        onSelect: function (item: any) {  
+          if (item.value === 'off') {  
+            if (artPlayerRef.current) {  
+              artPlayerRef.current.subtitle.show = false;  
+            }  
+            return '关闭';  
+          }  
+            
+          if (artPlayerRef.current) {  
+            artPlayerRef.current.subtitle.switch(item.subtitle.url, {  
+              type: item.subtitle.type,  
+            });  
+            artPlayerRef.current.subtitle.show = true;  
+          }  
+          return item.html;  
+        },  
+      });  
         
       // 默认加载第一个检测到的字幕  
       const firstSub = autoSubtitles[0];  
@@ -4091,34 +4089,26 @@ useEffect(() => {
     loadAndInit();
   }, [Hls, videoUrl, loading, blockAdEnabled]);
 // -----------------------------------------------------------------------------
-  // 🚀 修复 V9：延迟 0ms + 终极日志追踪
+  // 🚀 修复 V8：延迟到下一事件循环 (setTimeout 0)，确保 ArtPlayer DOM 稳定后再更新 UI
   // -----------------------------------------------------------------------------
   useEffect(() => {
     const art = artPlayerRef.current;
     const autoSubtitles = loadedSubtitleUrls;
 
     if (art && autoSubtitles.length > 0) {
-      const firstSub = autoSubtitles[0];
-      const expectedTooltip = firstSub.filename;
+      console.log(`🎬 [V8] 准备强制刷新字幕设置 (延迟 0ms 执行, ${autoSubtitles.length} 个文件)...`);
 
-      console.log(`🎬 [V9] 准备强制刷新字幕设置。预期 Tooltip: ${expectedTooltip}`);
-
-      // 延迟 0ms，等待 ArtPlayer 完成当前同步渲染，在下一事件循环中执行
+      // 延迟 0ms，确保在 ArtPlayer 完成当前 tick 的所有 DOM 操作后再执行
+      // 这是解决第三方库顽固 UI 缓存的最可靠方法之一。
       const timer = setTimeout(() => {
         try {
+          const firstSub = autoSubtitles[0];
           
-          // 🛑 日志点 1: 打印更新前的 ArtPlayer 设置
-          console.log('📝 [V9-LOG-1] 更新前 art.setting.option 长度:', art.setting.option.length);
-          // 打印 '外部字幕' 旧项（如果有）
-          const oldOption = art.setting.option.find((item: any) => item.html === '外部字幕');
-          console.log('📝 [V9-LOG-1] 旧的 "外部字幕" 项:', oldOption ? { tooltip: oldOption.tooltip, name: oldOption.name } : '未找到');
-
-
           // 1. 构造全新的配置对象
           const newSubtitleOption = {
             html: '外部字幕',
-            name: 'external_subs', 
-            tooltip: `当前: ${expectedTooltip}`, // 核心显示文本
+            name: 'external_subs',
+            tooltip: `当前: ${firstSub.filename}`, // 核心显示文本
             icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>',
             selector: [
               { html: '关闭', value: 'off' },
@@ -4147,30 +4137,24 @@ useEffect(() => {
           // 3. 将新项加入到干净数组中
           cleanOptions.push(newSubtitleOption);
 
-          // 4. 💥 整体赋值：强制 ArtPlayer 重绘
-          // 使用扩展运算符确保是新数组引用
+          // 4. 💥 整体赋值：强制 ArtPlayer 重绘，使用扩展运算符确保是新数组引用
           // @ts-ignore
           art.setting.option = [...cleanOptions]; 
           
-          // 🛑 日志点 2: 打印更新后的 ArtPlayer 设置
-          const newOptionCheck = art.setting.option.find((item: any) => item.html === '外部字幕');
-          console.log('📝 [V9-LOG-2] 赋值后 ArtPlayer 内部 "外部字幕" 项:', newOptionCheck ? { tooltip: newOptionCheck.tooltip, selectorLength: newOptionCheck.selector.length } : '赋值后未找到！');
-
-          console.log(`✅ [V9] 字幕菜单 UI 已强制重构，预期 Tooltip: ${expectedTooltip}`);
-
+          console.log(`✅ [V8] 字幕菜单 UI 已强制重构，Tooltip应为: ${firstSub.filename}`);
 
           // 5. 确保当前轨道是正确的
           if (art.subtitle.url !== firstSub.url) {
-             console.log(`✅ [V9] 强制切换轨道至: ${firstSub.filename}`);
+             console.log(`✅ [V8] 强制切换轨道至: ${firstSub.filename}`);
              art.subtitle.switch(firstSub.url, { type: firstSub.type });
              art.subtitle.show = true;
              art.notice.show = `已加载字幕: ${firstSub.filename}`;
           }
 
         } catch (error) {
-          console.warn('⚠️ [V9] 字幕设置更新异常:', error);
+          console.warn('⚠️ [V8] 字幕设置更新异常:', error);
         }
-      }, 0); 
+      }, 0); // 0ms 延迟，关键所在！
 
       return () => clearTimeout(timer);
     } 
@@ -4183,7 +4167,7 @@ useEffect(() => {
         if (cleanOptions.length !== art.setting.option.length) {
             // @ts-ignore
             art.setting.option = [...cleanOptions];
-            console.log('✅ [V9] 无字幕，已从菜单中移除外部字幕项。');
+            console.log('✅ [V8] 无字幕，已从菜单中移除外部字幕项。');
         }
     }
   }, [loadedSubtitleUrls, artPlayerRef.current]);
