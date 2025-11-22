@@ -1355,20 +1355,25 @@ useEffect(() => {
   };
 
   // 清理播放器资源的统一函数（添加更完善的清理逻辑）
-   const cleanupPlayer = () => {
-     // 🔑 中止 banana 元数据请求
-     if (bananaMetadataAbortRef.current) {
-       bananaMetadataAbortRef.current.abort();
-       bananaMetadataAbortRef.current = null;
-       console.log('🛑 已中止 banana 元数据请求');
-     }
-
-     // 清理 banana seek 定时器
-     if (bananaSeekTimeoutRef.current) {
-       clearTimeout(bananaSeekTimeoutRef.current);
-       bananaSeekTimeoutRef.current = null;
-       console.log('🛑 已清理 banana seek 定时器');
-    }
+   const cleanupPlayer = () => {  
+  console.log('🔍 [清理] 开始清理播放器');  
+  console.log('🔍 [清理] 当前状态:', {  
+    hasPlayer: !!artPlayerRef.current,  
+    hasVideo: !!artPlayerRef.current?.video,  
+    videoSrc: artPlayerRef.current?.video?.src,  
+    videoPaused: artPlayerRef.current?.video?.paused,  
+    bananaSeekTimeout: !!bananaSeekTimeoutRef.current,  
+    bananaMetadataAbort: !!bananaMetadataAbortRef.current  
+  });  
+    
+  // 清理 banana seek 定时器  
+  if (bananaSeekTimeoutRef.current) {  
+    clearTimeout(bananaSeekTimeoutRef.current);  
+    bananaSeekTimeoutRef.current = null;  
+    console.log('🛑 已清理 banana seek 定时器');  
+  } else {  
+    console.log('ℹ️ banana seek 定时器为空');  
+  }  
     // 🚀 新增：清理弹幕优化相关的定时器
     if (danmuOperationTimeoutRef.current) {
       clearTimeout(danmuOperationTimeoutRef.current);
@@ -1383,18 +1388,34 @@ useEffect(() => {
     // 清理弹幕状态引用
     danmuPluginStateRef.current = null;
     
-    if (artPlayerRef.current) {
-      try {
-        // 👇 在这里添加 video 元素清理,用于停止转码
-        const video = artPlayerRef.current.video as HTMLVideoElement;
-
-        // 中止所有网络请求
-        if (video) {
-          video.pause();
-          video.src = '';
-          video.load(); // 触发中止
-          console.log('🛑 已中止视频加载');
-        }
+    if (video) {
+		console.log('🔍 [清理] video 元素状态:', {  
+    src: video.src,  
+    currentSrc: video.currentSrc,  
+    networkState: video.networkState,  
+    readyState: video.readyState,  
+    paused: video.paused  
+  });
+      video.pause();
+	  console.log('✅ video.pause() 已调用');
+      const sources = video.querySelectorAll('source');
+      sources.forEach(s => s.remove());
+      video.src = '';
+	  console.log('✅ video.src 已清空');
+      video.removeAttribute('src');
+      video.load();
+	  console.log('✅ video.load() 已调用');
+	    // 100ms 后验证  
+  setTimeout(() => {  
+    console.log('🔍 [清理] 100ms后验证:', {  
+      src: video.src,  
+      networkState: video.networkState,  
+      paused: video.paused  
+    });  
+  }, 100); 
+      video.remove();
+      console.log('🛑 已彻底清理 video 元素');
+    }
         // 1. 清理弹幕插件的WebWorker
         if (artPlayerRef.current.plugins?.artplayerPluginDanmuku) {
           const danmukuPlugin = artPlayerRef.current.plugins.artplayerPluginDanmuku;
@@ -3540,7 +3561,15 @@ useEffect(() => {
       // 监听播放器事件
       artPlayerRef.current.on('ready', async () => {
         setError(null);
-
+  // 监听所有可能的 URL 变化  
+  const originalSwitchQuality = artPlayerRef.current.switchQuality;  
+  artPlayerRef.current.switchQuality = function(...args) {  
+    console.log('🔔 [监控] switchQuality 被调用:', {  
+      url: args[0],
+      stack: new Error().stack  
+    });
+    return originalSwitchQuality.apply(this, args);  
+  };
         // iOS设备自动播放优化：如果是静音启动的，在开始播放后恢复音量
         if ((isIOS || isSafari) && artPlayerRef.current.muted) {
           console.log('iOS设备静音自动播放，准备在播放开始后恢复音量');
@@ -4375,6 +4404,7 @@ useEffect(() => {
 
   // 当组件卸载时清理定时器、Wake Lock 和播放器资源
   useEffect(() => {
+	console.log('🔍 [生命周期] 播放页面组件已挂载');
     return () => {
       // 清理定时器
       if (saveIntervalRef.current) {
@@ -4393,9 +4423,14 @@ useEffect(() => {
 
       // 释放 Wake Lock
       releaseWakeLock();
-
+    console.log('🔍 [生命周期] 播放页面组件即将卸载');  
+    console.log('🔍 [生命周期] 当前播放器状态:', {  
+      hasPlayer: !!artPlayerRef.current,  
+      videoUrl: artPlayerRef.current?.url  
+    });
       // 销毁播放器实例
       cleanupPlayer();
+	  console.log('✅ [生命周期] cleanupPlayer 调用完成'); 
     };
   }, []);
 
