@@ -4100,94 +4100,83 @@ useEffect(() => {
 
     loadAndInit();
   }, [Hls, videoUrl, loading, blockAdEnabled]);
-// 🚀 修复：监听加载到的字幕 URL 变化，并重新加载 ArtPlayer 的字幕设置
+// -----------------------------------------------------------------------------
+  // 🚀 修复 v2：监听字幕变化，并确保在视频切换稳定后更新 ArtPlayer 设置
   // -----------------------------------------------------------------------------
   useEffect(() => {
     const art = artPlayerRef.current;
-    const autoSubtitles = loadedSubtitleUrls; // 包含新集数的字幕信息
+    const autoSubtitles = loadedSubtitleUrls; 
 
-    if (art) {
-      console.log(`🎬 ArtPlayer 字幕设置更新: 检测到 ${autoSubtitles.length} 条字幕`);
-      
-      // 1. 尝试移除旧的 '外部字幕' 设置项
-      try {
-        // 移除旧的设置项，防止重复
-        if (art.setting) {
-            // 如果有 API 支持移除更好，否则手动操作数组
-            const settings = art.setting.option; // 注意：ArtPlayer 这里的属性可能是 option 而不是 settings，根据你现有代码 Snippet 1318 调整
-            const subtitleIndex = settings.findIndex((item: any) => item.html === '外部字幕');
-            if (subtitleIndex !== -1) {
-                settings.splice(subtitleIndex, 1);
-                console.log('✅ 旧的外部字幕设置项已移除');
-            }
-            // 强制刷新设置菜单 UI (如果需要，通常 add 会触发刷新)
-        }
-      } catch (error) {
-        console.warn('清理旧字幕设置失败:', error);
-      }
+    if (art && autoSubtitles.length > 0) {
+      console.log(`🎬 准备更新字幕设置 (${autoSubtitles.length} 个文件)...`);
 
-      // 2. 如果之前有字幕显示，先暂时关闭，防止残留
-      // art.subtitle.show = false; 
+      // 使用 500ms 延迟，确保在 switchUrl 完成且 UI 稳定后再更新菜单
+      // 解决 "选项里没有更新" 的问题
+      const timer = setTimeout(() => {
+        try {
+          // 1. 彻底清理旧的 '外部字幕' 设置项
+          // 直接操作 option 数组是修改 ArtPlayer 设置最直接的方式
+          if (art.setting && Array.isArray(art.setting.option)) {
+             const settings = art.setting.option;
+             // 倒序循环删除所有名为 '外部字幕' 的项，防止有残留
+             for (let i = settings.length - 1; i >= 0; i--) {
+               if (settings[i].html === '外部字幕') {
+                 settings.splice(i, 1);
+                 console.log('🗑️ 已移除旧字幕菜单项');
+               }
+             }
+          }
 
-      if (autoSubtitles.length > 0) {
-        const firstSub = autoSubtitles[0];
-
-        // 3. 重新添加新的字幕设置项
-        art.setting.add({
-          html: '外部字幕',
-          tooltip: `当前:${firstSub.filename}`,
-          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>',
-          selector: [
-            {
-              html: '关闭',
-              value: 'off',
-            },
-            ...autoSubtitles.map((sub) => ({
-              html: sub.filename,
-              value: sub.url,
-              subtitle: {
-                url: sub.url,
-                type: sub.type,
-              },
-            })),
-          ],
-          onSelect: function (item: any) {
-            if (item.value === 'off') {
-              if (art) {
+          // 2. 构造新的设置项
+          const firstSub = autoSubtitles[0];
+          const newSubtitleOption = {
+            html: '外部字幕',
+            tooltip: `当前:${firstSub.filename}`,
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>',
+            selector: [
+              { html: '关闭', value: 'off' },
+              ...autoSubtitles.map((sub) => ({
+                html: sub.filename,
+                value: sub.url,
+                subtitle: { url: sub.url, type: sub.type },
+              })),
+            ],
+            onSelect: function (item: any) {
+              if (item.value === 'off') {
                 art.subtitle.show = false;
+                return '关闭';
               }
-              return '关闭';
-            }
-
-            if (art) {
-              art.subtitle.switch(item.subtitle.url, {
-                type: item.subtitle.type,
-              });
+              art.subtitle.switch(item.subtitle.url, { type: item.subtitle.type });
               art.subtitle.show = true;
-            }
-            return item.html;
-          },
-        });
+              return item.html;
+            },
+          };
 
-        // 4. 强制切换到新的字幕轨道
-        // 使用 setTimeout 确保在 UI 更新后执行
-        setTimeout(() => {
-            if(art && art.subtitle) {
-                art.subtitle.switch(firstSub.url, { type: firstSub.type });
-                art.subtitle.show = true;
-                art.notice.show = `已加载字幕: ${firstSub.filename}`;
-                console.log('✅ 字幕已强制切换到:', firstSub.filename);
-            }
-        }, 100);
+          // 3. 添加新设置项并强制刷新
+          art.setting.add(newSubtitleOption);
+          console.log('✅ 新字幕菜单项已添加');
 
-      } else {
-        console.log('📭 新集数未检测到字幕文件');
-        if (art && art.subtitle) {
-            art.subtitle.show = false;
+          // 4. 强制切换到第一个字幕
+          art.subtitle.switch(firstSub.url, { type: firstSub.type });
+          art.subtitle.show = true;
+          art.notice.show = `已加载字幕: ${firstSub.filename}`;
+          
+        } catch (error) {
+          console.warn('⚠️ 字幕设置更新异常:', error);
         }
-      }
+      }, 500); // 500毫秒延迟
+
+      return () => clearTimeout(timer);
+    } else if (art && autoSubtitles.length === 0) {
+        // 如果没有字幕，也尝试清理菜单
+        if (art.setting && Array.isArray(art.setting.option)) {
+             const settings = art.setting.option;
+             const idx = settings.findIndex((s: any) => s.html === '外部字幕');
+             if (idx > -1) settings.splice(idx, 1);
+        }
+        art.subtitle.show = false;
     }
-  }, [loadedSubtitleUrls]); // 仅监听 loadedSubtitleUrls 变化
+  }, [loadedSubtitleUrls, artPlayerRef.current]); // 监听 loadedSubtitleUrls 变化
 
   // 当组件卸载时清理定时器、Wake Lock 和播放器资源
   useEffect(() => {
