@@ -1650,24 +1650,29 @@ useEffect(() => {
   }
 
   // 🆕 集数变化时重新检测字幕
-  if (artPlayerRef.current && !isSourceChangingRef.current) {
-    // 立即执行字幕加载，确保视频URL已更新
-    console.log('🔄 集数变化,重新检测字幕...');
-    try {
-      const autoSubtitles = await autoLoadSubtitles(videoUrl);
-      if (autoSubtitles.length > 0) {
-        console.log('✅ 新集数检测到字幕:', autoSubtitles);
-        setLoadedSubtitleUrls(autoSubtitles); // 更新字幕 URL
-      } else {
-        console.log('📭 新集数未检测到字幕文件');
-        if (artPlayerRef.current) {
-          artPlayerRef.current.subtitle.show = false;
+  const loadSubtitles = async () => {
+    if (artPlayerRef.current && !isSourceChangingRef.current) {
+      // 立即执行字幕加载，确保视频URL已更新
+      console.log('🔄 集数变化,重新检测字幕...');
+      try {
+        const autoSubtitles = await autoLoadSubtitles(videoUrl);
+        if (autoSubtitles.length > 0) {
+          console.log('✅ 新集数检测到字幕:', autoSubtitles);
+          setLoadedSubtitleUrls(autoSubtitles); // 更新字幕 URL
+        } else {
+          console.log('📭 新集数未检测到字幕文件');
+          if (artPlayerRef.current) {
+            artPlayerRef.current.subtitle.show = false;
+          }
         }
+      } catch (error) {
+        console.warn('⚠️ 集数切换后字幕检测失败:', error);
       }
-    } catch (error) {
-      console.warn('⚠️ 集数切换后字幕检测失败:', error);
     }
-  }
+  };
+
+  // 调用字幕加载
+  loadSubtitles();
 
 }, [detail, currentEpisodeIndex, videoUrl]); // 添加 videoUrl 依赖
 
