@@ -2800,16 +2800,13 @@ useEffect(() => {
   if (art && autoSubtitles.length > 0) {
     console.log(`🎬 [V8] 准备强制刷新字幕设置...`);
 
-    const timer = setTimeout(() => {
+    // 定义加载字幕的函数
+    const loadSubtitle = () => {
+      if (!art.video || art.video.readyState < 2) {
+        console.log('⏳ [V8] 视频未就绪,等待 canplay 事件');
+        return;
+      }
       try {
-        console.log(`🔍 [V8] setTimeout 开始执行`);
-        console.log(`🔍 [V8] 播放器状态:`, {
-          hasVideo: !!art.video,
-          readyState: art.video?.readyState,
-          currentSubtitleUrl: art.subtitle?.url,
-          currentSubtitleShow: art.subtitle?.show
-        });
-
         const firstSub = autoSubtitles[0];
         console.log(`🔍 [V8] 准备加载字幕:`, firstSub);
 
@@ -2853,25 +2850,30 @@ useEffect(() => {
           art.subtitle.show = true;
           console.log(`✅ [V8] 设置 subtitle.show = true`);
 
-          // 验证最终状态
-          setTimeout(() => {
-            console.log(`🔍 [V8] 100ms后验证:`, {
-              url: art.subtitle.url,
-              show: art.subtitle.show,
-              videoReadyState: art.video?.readyState
-            });
-          }, 100);
-
           art.notice.show = `已加载字幕: ${firstSub.filename}`;
-        } else {
-          console.log(`ℹ️ [V8] 字幕 URL 相同,跳过切换`);
-        }
+        } 
+        console.log('✅ [V8] 字幕加载完成');
       } catch (error) {
         console.warn('❌ [V8] 异常:', error);
       }
-    }, 0);
+    };
 
-    return () => clearTimeout(timer);
+    // 🔑 检查视频状态
+    if (art.video && art.video.readyState >= 2) {
+      // 视频已就绪,立即加载
+      loadSubtitle();
+    } else {
+      // 视频未就绪,等待 canplay 事件
+      const handleCanPlay = () => {
+        loadSubtitle();
+        art.off('video:canplay', handleCanPlay);
+      };
+      art.on('video:canplay', handleCanPlay);
+
+      return () => {
+        art.off('video:canplay', handleCanPlay);
+      };
+    }
   } else if (art && autoSubtitles.length === 0) {
     console.log(`🧹 [V8] 无字幕,清理外部字幕设置`);
     art.subtitle.show = false;
@@ -2889,7 +2891,7 @@ useEffect(() => {
       subtitlesCount: autoSubtitles.length
     });
   }
-}, [loadedSubtitleUrls, artPlayerRef.current]);
+}, [loadedSubtitleUrls]);
   useEffect(() => {
     // 异步初始化播放器，避免SSR问题
     const initPlayer = async () => {
