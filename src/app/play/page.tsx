@@ -4101,7 +4101,7 @@ useEffect(() => {
     loadAndInit();
   }, [Hls, videoUrl, loading, blockAdEnabled]);
 // -----------------------------------------------------------------------------
-  // 🚀 修复 v3：使用 update 方法原地更新字幕设置，确保 UI 刷新
+  // 🚀 修复 v5 (最终版)：通过整体重置 setting.option 避开 update 报错，并强制刷新 UI
   // -----------------------------------------------------------------------------
   useEffect(() => {
     const art = artPlayerRef.current;
@@ -4110,15 +4110,14 @@ useEffect(() => {
     if (art && autoSubtitles.length > 0) {
       console.log(`🎬 准备更新字幕设置 (${autoSubtitles.length} 个文件)...`);
 
-      // 使用 500ms 延迟，确保在视频切换稳定后再执行
       const timer = setTimeout(() => {
         try {
           const firstSub = autoSubtitles[0];
           
-          // 构造新的配置对象
+          // 1. 构造新的配置对象
           const newSubtitleOption = {
             html: '外部字幕',
-            tooltip: `当前:${firstSub.filename}`,
+            tooltip: `当前: ${firstSub.filename}`,
             icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>',
             selector: [
               { html: '关闭', value: 'off' },
@@ -4139,28 +4138,34 @@ useEffect(() => {
             },
           };
 
-          // 🔍 查找现有的 '外部字幕' 菜单项索引
-          // 注意：ArtPlayer 的 setting.option 是一个数组
-          const settings = art.setting.option;
-          const existingIndex = settings.findIndex((item: any) => item.html === '外部字幕');
+          // 2. 获取当前菜单的副本（避免直接修改原数组）
+          // ArtPlayer 的 setting.option 可能是个 getter，我们需要克隆一份数组
+          const currentOptions = [...art.setting.option];
+          
+          // 3. 查找是否存在 '外部字幕'
+          const existingIndex = currentOptions.findIndex((item: any) => item.html === '外部字幕');
 
           if (existingIndex !== -1) {
-            // ✅ 方案 A: 如果存在，使用 update 原地更新 (这是最稳妥的方式)
-            console.log('🔄 更新现有的字幕菜单项...');
-            art.setting.update(existingIndex, newSubtitleOption);
+            // 如果存在，直接替换该项
+            console.log('🔄 [V5] 替换现有字幕菜单项 (Index:', existingIndex, ')');
+            currentOptions[existingIndex] = newSubtitleOption;
           } else {
-            // ✅ 方案 B: 如果不存在，使用 add 添加
-            console.log('➕ 添加新的字幕菜单项...');
-            art.setting.add(newSubtitleOption);
+            // 如果不存在，添加到前面（或后面，视喜好而定）
+            console.log('➕ [V5] 添加新字幕菜单项');
+            currentOptions.unshift(newSubtitleOption); // unshift 添加到最前，push 添加到最后
           }
 
-          // ⚡ 强制切换字幕轨道（核心步骤）
-          // 即使菜单没更新，这行代码也能保证屏幕上的字幕变了
+          // 4. 💥 关键一步：整体赋值回 art.setting.option
+          // 这会触发 ArtPlayer 内部的 setter，强制重绘整个设置菜单
+          art.setting.option = currentOptions;
+
+          // 5. 强制切换字幕轨道（双重保险）
+          // 即使 UI 还没反应，这行代码也能保证屏幕上的字幕变了
           if (art.subtitle.url !== firstSub.url) {
+             console.log(`✅ [V5] 强制切换字幕轨道至: ${firstSub.filename}`);
              art.subtitle.switch(firstSub.url, { type: firstSub.type });
              art.subtitle.show = true;
              art.notice.show = `已加载字幕: ${firstSub.filename}`;
-             console.log(`✅ 字幕轨道已切换至: ${firstSub.filename}`);
           }
 
         } catch (error) {
@@ -4171,21 +4176,8 @@ useEffect(() => {
       return () => clearTimeout(timer);
     } 
     else if (art && autoSubtitles.length === 0) {
-        // 如果没有字幕，尝试移除菜单项
-        // 这里我们尝试查找并 update 为 null 或者隐藏，或者使用 splice (如果 ArtPlayer 不支持 remove)
-        try {
-            const settings = art.setting.option;
-            const idx = settings.findIndex((s: any) => s.html === '外部字幕');
-            if (idx > -1) {
-                // ArtPlayer 并没有标准的 remove 方法，但有些版本支持 update 为空
-                // 或者我们可以保留菜单但显示为"无字幕"
-                // 这里为了保险，我们只关闭字幕显示
-                art.subtitle.show = false;
-                // 如果你想彻底移除，可以尝试：
-                // settings.splice(idx, 1); 
-                // art.setting.show = art.setting.show; // 触发一种重绘 hack
-            }
-        } catch (e) { /* ignore */ }
+        // 如果没有字幕，关闭显示
+        art.subtitle.show = false;
     }
   }, [loadedSubtitleUrls, artPlayerRef.current]);
 
