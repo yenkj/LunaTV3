@@ -288,17 +288,17 @@ useEffect(() => {
       setBananaMetadata(data);
       console.log('✅ Banana 元数据获取成功:', data);
       if (artPlayerRef.current && data.subtitleTracks && data.subtitleTracks.length > 0) {
-      console.log('📝 添加内嵌字幕选择器');
+      console.log(`📝 [内嵌字幕] 准备添加内嵌字幕选择器 (时间戳: ${new Date().getTime()})`);
       
       // 先检查是否已经存在内嵌字幕选择器,避免重复添加
       const settings = artPlayerRef.current.setting.option;
       const hasEmbeddedSubtitle = settings.some((s: any) => s.html === '内嵌字幕');
-        
+      console.log(`🔍 [内嵌字幕] 当前设置项数量: ${settings.length}, 已存在内嵌字幕: ${hasEmbeddedSubtitle}`);   
       if (!hasEmbeddedSubtitle) {
         const match = videoUrl.match(/\/[rt]\/([^.]+)/);
         if (match) {
           const fileId = match[1];
-          
+          console.log(`➕ [内嵌字幕] 正在添加内嵌字幕菜单项`); 
           artPlayerRef.current.setting.add({
             html: '内嵌字幕',
             tooltip: '选择字幕',
@@ -327,7 +327,11 @@ useEffect(() => {
               return item.html;
             },
           });
-        }
+		  console.log(`✅ [内嵌字幕] 内嵌字幕菜单已添加, 当前设置项数量: ${artPlayerRef.current.setting.option.length}`);
+		  }  
+      } else {  
+      // 👇 第二个日志加在这里  
+      console.log(`ℹ️ [内嵌字幕] 内嵌字幕项已存在,跳过添加`);  
       }
     }
       // 👇 在这里添加选择器,确保播放器已初始化
@@ -2783,7 +2787,7 @@ useEffect(() => {
   const autoSubtitles = loadedSubtitleUrls;    
     
   if (art && autoSubtitles.length > 0) {    
-    console.log(`🎬 [V8] 准备强制刷新字幕设置...`);    
+    console.log(`🎬 [V8] 准备强制刷新字幕设置 (时间戳: ${new Date().getTime()})...`);    
         
     const timer = setTimeout(() => {    
       try {    
@@ -2793,15 +2797,19 @@ useEffect(() => {
         const settings = art.setting.option;  
         const hasExternalSubtitle = settings.some((s: any) => s.html === '外部字幕');  
           
+        console.log(`🔍 [V8] 当前设置项数量: ${settings.length}, 已存在外部字幕: ${hasExternalSubtitle}`);  
+          
         if (hasExternalSubtitle) {  
           // 如果已存在,先移除旧的  
           const index = settings.findIndex((s: any) => s.html === '外部字幕');  
           if (index !== -1) {  
             settings.splice(index, 1);  
+            console.log(`🗑️ [V8] 已移除旧的外部字幕项 (索引: ${index})`);  
           }  
         }  
           
         // 然后添加新的  
+        console.log(`➕ [V8] 正在添加新的外部字幕项: ${firstSub.filename}`);  
         art.setting.add({    
           html: '外部字幕',    
           name: 'external_subs',    
@@ -2825,8 +2833,11 @@ useEffect(() => {
             return item.html;    
           },    
         });  
+          
+        console.log(`✅ [V8] 外部字幕菜单已添加, 当前设置项数量: ${art.setting.option.length}`);  
             
         if (art.subtitle.url !== firstSub.url) {    
+          console.log(`🔄 [V8] 切换字幕轨道至: ${firstSub.filename}`);  
           art.subtitle.switch(firstSub.url, { type: firstSub.type });    
           art.subtitle.show = true;    
           art.notice.show = `已加载字幕: ${firstSub.filename}`;    
@@ -2838,11 +2849,15 @@ useEffect(() => {
     
     return () => clearTimeout(timer);    
   } else if (art && autoSubtitles.length === 0) {    
+    console.log(`📭 [V8] 无字幕,准备移除外部字幕项 (时间戳: ${new Date().getTime()})`);  
     // 移除外部字幕项  
     const settings = art.setting.option;  
     const index = settings.findIndex((s: any) => s.html === '外部字幕');  
     if (index !== -1) {  
       settings.splice(index, 1);  
+      console.log(`✅ [V8] 已移除外部字幕项, 当前设置项数量: ${settings.length}`);  
+    } else {  
+      console.log(`ℹ️ [V8] 未找到外部字幕项,无需移除`);  
     }  
   }    
 }, [loadedSubtitleUrls, artPlayerRef.current]);
