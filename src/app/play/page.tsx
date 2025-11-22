@@ -1792,24 +1792,26 @@ useEffect(() => {
         }
       }, 800); // 缩短延迟时间，提高响应性
     }
-	// 🆕 集数变化时重新检测字幕  
-	if (artPlayerRef.current && !isSourceChangingRef.current) {  
-	  console.log('🔄 集数变化,重新检测字幕...');  
-	  try {  
-		const autoSubtitles = await autoLoadSubtitles(videoUrl);  
-		if (autoSubtitles.length > 0) {  
-		  console.log('✅ 新集数检测到字幕:', autoSubtitles);  
-		  setLoadedSubtitleUrls(autoSubtitles);  
-		} else {  
-		  console.log('📭 新集数未检测到字幕文件');  
-		  if (artPlayerRef.current) {  
-			artPlayerRef.current.subtitle.show = false;  
-		  }  
-		}  
-	  } catch (error) {  
-		console.warn('⚠️ 集数切换后字幕检测失败:', error);  
-	  }  
-	}
+	// 🆕 集数变化时重新检测字幕
+    if (artPlayerRef.current && !isSourceChangingRef.current) {
+      (async () => {
+        console.log('🔄 集数变化,重新检测字幕...');
+        try {
+          const autoSubtitles = await autoLoadSubtitles(videoUrl);
+          if (autoSubtitles.length > 0) {
+            console.log('✅ 新集数检测到字幕:', autoSubtitles);
+            setLoadedSubtitleUrls(autoSubtitles);
+          } else {
+            console.log('📭 新集数未检测到字幕文件');
+            if (artPlayerRef.current) {
+              artPlayerRef.current.subtitle.show = false;
+            }
+          }
+        } catch (error) { 
+          console.warn('⚠️ 集数切换后字幕检测失败:', error);  
+        }
+      })();
+    }
   }, [detail, currentEpisodeIndex, videoUrl]); // 添加 videoUrl 依赖
 
   // 进入页面时直接获取全部源信息
