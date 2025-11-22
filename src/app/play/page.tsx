@@ -92,7 +92,10 @@ function PlayPageClient() {
   // 进度条拖拽状态管理
   const isDraggingProgressRef = useRef(false);
   const seekResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+
+  // 🔑 添加 banana seek 定时器 ref
+  const bananaSeekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // resize事件防抖管理
   const resizeResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -1338,6 +1341,11 @@ useEffect(() => {
 
   // 清理播放器资源的统一函数（添加更完善的清理逻辑）
   const cleanupPlayer = () => {
+    if (bananaSeekTimeoutRef.current) {
+      clearTimeout(bananaSeekTimeoutRef.current);
+      bananaSeekTimeoutRef.current = null;
+      console.log('🛑 已清理 banana seek 定时器');
+    }
     // 🚀 新增：清理弹幕优化相关的定时器
     if (danmuOperationTimeoutRef.current) {
       clearTimeout(danmuOperationTimeoutRef.current);
@@ -1800,15 +1808,11 @@ useEffect(() => {
     if (artPlayerRef.current && !isSourceChangingRef.current) {
       (async () => {
         console.log('🔄 [集数切换] 开始重新检测字幕...');
-        console.log('🔍 [集数切换] 当前 videoUrl:', videoUrl);
-        console.log('🔍 [集数切换] 当前 currentEpisodeIndex:', currentEpisodeIndex);
         try {
           const autoSubtitles = await autoLoadSubtitles(videoUrl);
           if (autoSubtitles.length > 0) {
             console.log('✅ [集数切换] 检测到字幕:', autoSubtitles);
-            console.log('🔍 [集数切换] 准备更新 loadedSubtitleUrls 状态');
             setLoadedSubtitleUrls(autoSubtitles);
-            console.log('✅ [集数切换] loadedSubtitleUrls 状态已更新');
           } else {
             console.log('📭 [集数切换] 未检测到字幕文件');
             if (artPlayerRef.current) {
@@ -2790,25 +2794,16 @@ useEffect(() => {
   const art = artPlayerRef.current;
   const autoSubtitles = loadedSubtitleUrls;
 
-  console.log(`🔍 [V8] useEffect 触发:`, {
-    hasArt: !!art,
-    subtitlesCount: autoSubtitles.length,
-    subtitles: autoSubtitles,
-    timestamp: new Date().getTime()
-  });
-
   if (art && autoSubtitles.length > 0) {
     console.log(`🎬 [V8] 准备强制刷新字幕设置...`);
 
     // 定义加载字幕的函数
     const loadSubtitle = () => {
       if (!art.video || art.video.readyState < 2) {
-        console.log('⏳ [V8] 视频未就绪,等待 canplay 事件');
         return;
       }
       try {
         const firstSub = autoSubtitles[0];
-        console.log(`🔍 [V8] 准备加载字幕:`, firstSub);
 
         const newSubtitleOption = {
           html: '外部字幕',
@@ -2839,17 +2834,11 @@ useEffect(() => {
         );
         cleanOptions.push(newSubtitleOption);
         art.setting.option = [...cleanOptions];
-        console.log(`✅ [V8] 设置菜单已更新`);
 
         console.log(`🔍 [V8] 当前字幕 URL: ${art.subtitle.url}, 目标 URL: ${firstSub.url}`);
         if (art.subtitle.url !== firstSub.url) {
-          console.log(`🔍 [V8] 开始调用 subtitle.switch`);
           art.subtitle.switch(firstSub.url, { type: firstSub.type });
-          console.log(`✅ [V8] subtitle.switch 调用完成`);
-
           art.subtitle.show = true;
-          console.log(`✅ [V8] 设置 subtitle.show = true`);
-
           art.notice.show = `已加载字幕: ${firstSub.filename}`;
         } 
         console.log('✅ [V8] 字幕加载完成');
@@ -4004,19 +3993,19 @@ useEffect(() => {
           }
         });
         // 👇 添加防抖优化的 banana 转码 seek 支持
-        let seekTimeout: NodeJS.Timeout | null = null;
-
         artPlayerRef.current.on('seek', (currentTime: number) => {
           if (detail?.source === 'banana' && videoUrl.includes('/t/')) {
             // 清除之前的定时器,避免频繁触发
-            if (seekTimeout) clearTimeout(seekTimeout);
-            
+            if (bananaSeekTimeoutRef.current) {
+              clearTimeout(bananaSeekTimeoutRef.current);
+            }
+
             // 延迟 500ms 执行,只在用户停止拖动后才重新加载
-            seekTimeout = setTimeout(() => {
+            bananaSeekTimeoutRef.current = setTimeout(() => {
               const baseUrl = videoUrl.split('?')[0];
               const params = new URLSearchParams(videoUrl.split('?')[1] || '');
               params.set('start', currentTime.toString());
-                
+
               const newUrl = `${baseUrl}?${params.toString()}`;
               console.log(`⏩ 跳转到 ${currentTime.toFixed(2)}s`);
               artPlayerRef.current.switchQuality(newUrl);
