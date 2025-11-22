@@ -4101,84 +4101,79 @@ useEffect(() => {
     loadAndInit();
   }, [Hls, videoUrl, loading, blockAdEnabled]);
 // -----------------------------------------------------------------------------
-  // 🚀 修复 v6：彻底重构设置数组，强制销毁旧菜单项并重建，解决 UI 缓存问题
+  // 🚀 修复 V7：移除延迟，确保在状态变化后立即强制刷新 UI
   // -----------------------------------------------------------------------------
   useEffect(() => {
     const art = artPlayerRef.current;
     const autoSubtitles = loadedSubtitleUrls;
 
     if (art && autoSubtitles.length > 0) {
-      console.log(`🎬 [V6] 准备强制刷新字幕设置 (${autoSubtitles.length} 个文件)...`);
+      console.log(`🎬 [V7] 准备强制刷新字幕设置 (立即执行, ${autoSubtitles.length} 个文件)...`);
 
-      // 延迟 500ms 确保换集动作完全结束
-      const timer = setTimeout(() => {
-        try {
-          const firstSub = autoSubtitles[0];
-          
-          // 1. 构造全新的配置对象
-          const newSubtitleOption = {
-            html: '外部字幕',
-            name: 'external_subs', // 添加唯一标识
-            tooltip: `当前: ${firstSub.filename}`, // 这里是 UI 显示的关键
-            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>',
-            selector: [
-              { html: '关闭', value: 'off' },
-              ...autoSubtitles.map((sub) => ({
-                html: sub.filename,
-                value: sub.url,
-                subtitle: { url: sub.url, type: sub.type },
-              })),
-            ],
-            onSelect: function (item: any) {
-              if (item.value === 'off') {
-                art.subtitle.show = false;
-                return '关闭';
-              }
-              art.subtitle.switch(item.subtitle.url, { type: item.subtitle.type });
-              art.subtitle.show = true;
-              return item.html;
-            },
-          };
+      // 移除 setTimeout，让它立即执行
+      try {
+        const firstSub = autoSubtitles[0];
+        
+        // 1. 构造全新的配置对象
+        const newSubtitleOption = {
+          html: '外部字幕',
+          name: 'external_subs', // 添加唯一标识
+          tooltip: `当前: ${firstSub.filename}`, // 核心显示文本
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>',
+          selector: [
+            { html: '关闭', value: 'off' },
+            ...autoSubtitles.map((sub) => ({
+              html: sub.filename,
+              value: sub.url,
+              subtitle: { url: sub.url, type: sub.type },
+            })),
+          ],
+          onSelect: function (item: any) {
+            if (item.value === 'off') {
+              art.subtitle.show = false;
+              return '关闭';
+            }
+            art.subtitle.switch(item.subtitle.url, { type: item.subtitle.type });
+            art.subtitle.show = true;
+            return item.html;
+          },
+        };
 
-          // 2. 💥 暴力移除：过滤掉所有名为“外部字幕”的旧项，生成一个干净的数组
-          // 这一步确保旧的引用被彻底丢弃
-          const cleanOptions = art.setting.option.filter(
-              (item: any) => item.html !== '外部字幕'
-          );
+        // 2. 💥 暴力移除：过滤掉所有名为“外部字幕”的旧项
+        const cleanOptions = art.setting.option.filter(
+            (item: any) => item.html !== '外部字幕'
+        );
 
-          // 3. 将新项加入到干净数组中
-          // 我们将其放在数组的前面（unshift）或者保持原有位置
-          // 为了简单且有效，我们直接加到新数组里
-          cleanOptions.push(newSubtitleOption);
+        // 3. 将新项加入到干净数组中
+        cleanOptions.push(newSubtitleOption);
 
-          // 4. 💥 整体赋值：这将触发 ArtPlayer 的全量重绘
-          art.setting.option = cleanOptions;
-          
-          console.log('✅ [V6] 字幕菜单 UI 已强制重构');
+        // 4. 💥 整体赋值：强制 ArtPlayer 重绘
+        art.setting.option = cleanOptions;
+        
+        console.log(`✅ [V7] 字幕菜单 UI 已强制重构，Tooltip应为: ${firstSub.filename}`);
 
-          // 5. 再次确保当前轨道是正确的
-          if (art.subtitle.url !== firstSub.url) {
-             console.log(`✅ [V6] 强制切换轨道至: ${firstSub.filename}`);
-             art.subtitle.switch(firstSub.url, { type: firstSub.type });
-             art.subtitle.show = true;
-             art.notice.show = `已加载字幕: ${firstSub.filename}`;
-          }
-
-        } catch (error) {
-          console.warn('⚠️ [V6] 字幕设置更新异常:', error);
+        // 5. 确保当前轨道是正确的
+        if (art.subtitle.url !== firstSub.url) {
+           console.log(`✅ [V7] 强制切换轨道至: ${firstSub.filename}`);
+           art.subtitle.switch(firstSub.url, { type: firstSub.type });
+           art.subtitle.show = true;
+           art.notice.show = `已加载字幕: ${firstSub.filename}`;
         }
-      }, 500);
 
-      return () => clearTimeout(timer);
+      } catch (error) {
+        console.warn('⚠️ [V7] 字幕设置更新异常:', error);
+      }
+
     } 
     else if (art && autoSubtitles.length === 0) {
+        // 清理逻辑 (无字幕时彻底移除菜单项)
         art.subtitle.show = false;
-        // 没字幕时彻底移除菜单
         const cleanOptions = art.setting.option.filter(
             (item: any) => item.html !== '外部字幕'
         );
         if (cleanOptions.length !== art.setting.option.length) {
             art.setting.option = cleanOptions;
+            console.log('✅ [V7] 无字幕，已从菜单中移除外部字幕项。');
         }
     }
   }, [loadedSubtitleUrls, artPlayerRef.current]);
