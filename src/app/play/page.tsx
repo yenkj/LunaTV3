@@ -4101,23 +4101,25 @@ useEffect(() => {
     loadAndInit();
   }, [Hls, videoUrl, loading, blockAdEnabled]);
 // -----------------------------------------------------------------------------
-  // 🚀 修复 v5 (最终版)：通过整体重置 setting.option 避开 update 报错，并强制刷新 UI
+  // 🚀 修复 v6：彻底重构设置数组，强制销毁旧菜单项并重建，解决 UI 缓存问题
   // -----------------------------------------------------------------------------
   useEffect(() => {
     const art = artPlayerRef.current;
     const autoSubtitles = loadedSubtitleUrls;
 
     if (art && autoSubtitles.length > 0) {
-      console.log(`🎬 准备更新字幕设置 (${autoSubtitles.length} 个文件)...`);
+      console.log(`🎬 [V6] 准备强制刷新字幕设置 (${autoSubtitles.length} 个文件)...`);
 
+      // 延迟 500ms 确保换集动作完全结束
       const timer = setTimeout(() => {
         try {
           const firstSub = autoSubtitles[0];
           
-          // 1. 构造新的配置对象
+          // 1. 构造全新的配置对象
           const newSubtitleOption = {
             html: '外部字幕',
-            tooltip: `当前: ${firstSub.filename}`,
+            name: 'external_subs', // 添加唯一标识
+            tooltip: `当前: ${firstSub.filename}`, // 这里是 UI 显示的关键
             icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>',
             selector: [
               { html: '关闭', value: 'off' },
@@ -4138,46 +4140,46 @@ useEffect(() => {
             },
           };
 
-          // 2. 获取当前菜单的副本（避免直接修改原数组）
-          // ArtPlayer 的 setting.option 可能是个 getter，我们需要克隆一份数组
-          const currentOptions = [...art.setting.option];
+          // 2. 💥 暴力移除：过滤掉所有名为“外部字幕”的旧项，生成一个干净的数组
+          // 这一步确保旧的引用被彻底丢弃
+          const cleanOptions = art.setting.option.filter(
+              (item: any) => item.html !== '外部字幕'
+          );
+
+          // 3. 将新项加入到干净数组中
+          // 我们将其放在数组的前面（unshift）或者保持原有位置
+          // 为了简单且有效，我们直接加到新数组里
+          cleanOptions.push(newSubtitleOption);
+
+          // 4. 💥 整体赋值：这将触发 ArtPlayer 的全量重绘
+          art.setting.option = cleanOptions;
           
-          // 3. 查找是否存在 '外部字幕'
-          const existingIndex = currentOptions.findIndex((item: any) => item.html === '外部字幕');
+          console.log('✅ [V6] 字幕菜单 UI 已强制重构');
 
-          if (existingIndex !== -1) {
-            // 如果存在，直接替换该项
-            console.log('🔄 [V5] 替换现有字幕菜单项 (Index:', existingIndex, ')');
-            currentOptions[existingIndex] = newSubtitleOption;
-          } else {
-            // 如果不存在，添加到前面（或后面，视喜好而定）
-            console.log('➕ [V5] 添加新字幕菜单项');
-            currentOptions.unshift(newSubtitleOption); // unshift 添加到最前，push 添加到最后
-          }
-
-          // 4. 💥 关键一步：整体赋值回 art.setting.option
-          // 这会触发 ArtPlayer 内部的 setter，强制重绘整个设置菜单
-          art.setting.option = currentOptions;
-
-          // 5. 强制切换字幕轨道（双重保险）
-          // 即使 UI 还没反应，这行代码也能保证屏幕上的字幕变了
+          // 5. 再次确保当前轨道是正确的
           if (art.subtitle.url !== firstSub.url) {
-             console.log(`✅ [V5] 强制切换字幕轨道至: ${firstSub.filename}`);
+             console.log(`✅ [V6] 强制切换轨道至: ${firstSub.filename}`);
              art.subtitle.switch(firstSub.url, { type: firstSub.type });
              art.subtitle.show = true;
              art.notice.show = `已加载字幕: ${firstSub.filename}`;
           }
 
         } catch (error) {
-          console.warn('⚠️ 字幕设置更新异常:', error);
+          console.warn('⚠️ [V6] 字幕设置更新异常:', error);
         }
       }, 500);
 
       return () => clearTimeout(timer);
     } 
     else if (art && autoSubtitles.length === 0) {
-        // 如果没有字幕，关闭显示
         art.subtitle.show = false;
+        // 没字幕时彻底移除菜单
+        const cleanOptions = art.setting.option.filter(
+            (item: any) => item.html !== '外部字幕'
+        );
+        if (cleanOptions.length !== art.setting.option.length) {
+            art.setting.option = cleanOptions;
+        }
     }
   }, [loadedSubtitleUrls, artPlayerRef.current]);
 
