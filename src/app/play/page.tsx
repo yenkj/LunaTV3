@@ -4029,25 +4029,16 @@ useEffect(() => {
 let seekTimeout: NodeJS.Timeout | null = null;  
   
 artPlayerRef.current.on('seek', (currentTime: number) => {  
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
-  console.log(` [前端 Seek] 触发 seek 事件`);  
-  console.log(` [前端 Seek] currentTime 参数: ${currentTime}s`);  
-  console.log(` [前端 Seek] 当前 videoUrl: ${videoUrlRef.current}`); // ← 使用 ref  
-    
-  if (detail?.source === 'banana' && videoUrlRef.current.includes('/t/')) { // ← 使用 ref  
+  if (detail?.source === 'banana' && videoUrlRef.current.includes('/t/')) {  
     if (seekTimeout) clearTimeout(seekTimeout);  
     seekTimeout = setTimeout(() => {  
-      const baseUrl = videoUrlRef.current.split('?')[0]; // ← 使用 ref  
+      const baseUrl = videoUrlRef.current.split('?')[0];  
       const params = new URLSearchParams(videoUrlRef.current.split('?')[1] || '');  
       params.set('start', currentTime.toString());  
       const newUrl = `${baseUrl}?${params.toString()}`;  
-      console.log(`⏩ 跳转到 ${currentTime.toFixed(2)}s`);  
-      console.log(` [前端 Seek] 新 URL: ${newUrl}`);  
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
         
       artPlayerRef.current.switchQuality(newUrl).then(() => {  
         artPlayerRef.current.currentTime = currentTime;  
-        console.log(`✅ 已设置播放器时间为 ${currentTime.toFixed(2)}s`);  
       });  
     }, 500);  
   }  
