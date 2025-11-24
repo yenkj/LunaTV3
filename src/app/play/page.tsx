@@ -4025,8 +4025,6 @@ artPlayerRef.current.on('seek', (currentTime: number) => {
   console.log(` [前端 Seek] 触发 seek 事件`);  
   console.log(` [前端 Seek] currentTime 参数: ${currentTime}s`);  
   console.log(` [前端 Seek] 播放器当前 URL: ${artPlayerRef.current?.url}`);  
-  console.log(` [前端 Seek] 播放器实际时间: ${artPlayerRef.current?.currentTime}s`);  
-  console.log(` [前端 Seek] source: ${detail?.source}`);  
     
   if (detail?.source === 'banana' && artPlayerRef.current?.url?.includes('/t/')) {  
     if (seekTimeout) {  
@@ -4035,17 +4033,15 @@ artPlayerRef.current.on('seek', (currentTime: number) => {
     }  
       
     seekTimeout = setTimeout(() => {  
+      // ✅ 关键修复: 直接从播放器 URL 获取基础路径,不解析参数  
       const currentUrl = artPlayerRef.current.url;  
       const baseUrl = currentUrl.split('?')[0];  
-      const params = new URLSearchParams(currentUrl.split('?')[1] || '');  
         
-      console.log(` [前端 Seek] 原始 URL: ${currentUrl}`);  
-      console.log(` [前端 Seek] 原始 params: ${params.toString()}`);  
+      // ✅ 直接构建新的参数,不使用旧参数  
+      const newUrl = `${baseUrl}?start=${currentTime}`;  
         
-      params.set('start', currentTime.toString());  
-      console.log(` [前端 Seek] 设置 start=${currentTime}`);  
-        
-      const newUrl = `${baseUrl}?${params.toString()}`;  
+      console.log(` [前端 Seek] 当前 URL: ${currentUrl}`);  
+      console.log(` [前端 Seek] 基础 URL: ${baseUrl}`);  
       console.log(` [前端 Seek] 新 URL: ${newUrl}`);  
       console.log(`⏩ 跳转到 ${currentTime.toFixed(2)}s`);  
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
