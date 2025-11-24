@@ -92,7 +92,8 @@ function PlayPageClient() {
   // 进度条拖拽状态管理
   const isDraggingProgressRef = useRef(false);
   const seekResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null); // 🆕 添加这一行
+	
   // resize事件防抖管理
   const resizeResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -4042,26 +4043,23 @@ artPlayerRef.current.on('seek', (currentTime: number) => {
   console.log(` [前端 Seek] 触发 seek 事件`);  
   console.log(` [前端 Seek] currentTime 参数: ${currentTime}s`);  
   console.log(` [前端 Seek] 播放器当前 URL: ${artPlayerRef.current?.url}`);  
-    
-  // 🆕 关键诊断日志  
   console.log(` [前端 Seek] 播放器实际 currentTime: ${artPlayerRef.current?.currentTime}s`);  
   console.log(` [前端 Seek] 参数与实际差值: ${Math.abs(currentTime - (artPlayerRef.current?.currentTime || 0)).toFixed(2)}s`);  
   console.log(` [前端 Seek] 播放器 seeking 状态: ${artPlayerRef.current?.seeking}`);  
-  console.log(` [前端 Seek] seekTimeout 状态: ${seekTimeout ? '存在' : 'null'}`);  
+  console.log(` [前端 Seek] seekTimeout 状态: ${seekTimeoutRef.current ? '存在' : 'null'}`); // 修改这里  
   console.log(` [前端 Seek] 触发时间戳: ${Date.now()}`);  
       
   if (detail?.source === 'banana' && artPlayerRef.current?.url?.includes('/t/')) {  
-    if (seekTimeout) {  
+    if (seekTimeoutRef.current) { // 修改这里  
       console.log(` [前端 Seek] 清除之前的定时器`);  
-      clearTimeout(seekTimeout);  
+      clearTimeout(seekTimeoutRef.current); // 修改这里  
     }  
         
-    seekTimeout = setTimeout(() => {  
+    seekTimeoutRef.current = setTimeout(() => { // 修改这里  
       const currentUrl = artPlayerRef.current.url;  
       const baseUrl = currentUrl.split('?')[0];  
       const newUrl = `${baseUrl}?start=${currentTime}`;  
         
-      // 🆕 setTimeout 回调中的诊断日志  
       console.log(` [前端 Seek Timeout] ═══ 500ms 后执行 ═══`);  
       console.log(` [前端 Seek Timeout] 闭包捕获的 currentTime: ${currentTime}s`);  
       console.log(` [前端 Seek Timeout] 播放器实际 currentTime: ${artPlayerRef.current?.currentTime}s`);  
@@ -4073,7 +4071,6 @@ artPlayerRef.current.on('seek', (currentTime: number) => {
           
       artPlayerRef.current.switchQuality(newUrl);  
         
-      // 🆕 switchQuality 调用后  
       console.log(` [前端 Seek Timeout] switchQuality 已调用`);  
       console.log(` [前端 Seek Timeout] 调用后 URL: ${artPlayerRef.current?.url}`);  
     }, 500);  
