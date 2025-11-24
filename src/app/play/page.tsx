@@ -4018,22 +4018,35 @@ useEffect(() => {
         });
 
         // 👇 添加防抖优化的 banana 转码 seek 支持
-        let seekTimeout: NodeJS.Timeout | null = null;
-        artPlayerRef.current.on('seek', (currentTime: number) => {
-          if (detail?.source === 'banana' && videoUrl.includes('/t/')) {
-            // 清除之前的定时器,避免频繁触发
-            if (seekTimeout) clearTimeout(seekTimeout);
-            // 延迟 500ms 执行,只在用户停止拖动后才重新加载
-            seekTimeout = setTimeout(() => {
-              const baseUrl = videoUrl.split('?')[0];
-              const params = new URLSearchParams(videoUrl.split('?')[1] || '');
-              params.set('start', currentTime.toString());
-              const newUrl = `${baseUrl}?${params.toString()}`;
-              console.log(`⏩ 跳转到 ${currentTime.toFixed(2)}s`);
-              artPlayerRef.current.switchQuality(newUrl);
-            }, 500);
-          }
-        });
+let seekTimeout: NodeJS.Timeout | null = null;  
+let isSwitchingQuality = false;  // ← 添加标志位  
+  
+artPlayerRef.current.on('seek', (currentTime: number) => {  
+  if (detail?.source === 'banana' && videoUrl.includes('/t/')) {  
+    // ← 如果正在切换质量,忽略这次 seek 事件  
+    if (isSwitchingQuality) {  
+      console.log('⏸️ 忽略 switchQuality 触发的 seek 事件');  
+      return;  
+    }  
+      
+    if (seekTimeout) clearTimeout(seekTimeout);  
+    seekTimeout = setTimeout(() => {  
+      const baseUrl = videoUrl.split('?')[0];  
+      const params = new URLSearchParams(videoUrl.split('?')[1] || '');  
+      params.set('start', currentTime.toString());  
+      const newUrl = `${baseUrl}?${params.toString()}`;  
+      console.log(`⏩ 跳转到 ${currentTime.toFixed(2)}s`);  
+        
+      isSwitchingQuality = true;  // ← 设置标志位  
+      artPlayerRef.current.switchQuality(newUrl).then(() => {  
+        // ← 切换完成后重置标志位  
+        setTimeout(() => {  
+          isSwitchingQuality = false;  
+        }, 1000);  
+      });  
+    }, 500);  
+  }  
+});
         // 监听拖拽状态 - v5.2.0优化: 在拖拽期间暂停弹幕更新以减少闪烁
         artPlayerRef.current.on('video:seeking', () => {
           isDraggingProgressRef.current = true;
