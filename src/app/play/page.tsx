@@ -1355,7 +1355,7 @@ useEffect(() => {
       try {
         // 👇 在这里添加 video 元素清理,用于停止转码
         const video = artPlayerRef.current.video as HTMLVideoElement;
-        if (video) {  
+        if (video) {
       console.log('🔍 [清理] video 元素状态:', {  
         src: video.src,  
         networkState: video.networkState,  
@@ -1363,8 +1363,8 @@ useEffect(() => {
       });  
         
       // 1. 暂停播放  
-      video.pause();  
-      console.log('✅ video.pause() 已调用');  
+      video.pause();
+      console.log('✅ video.pause() 已调用');
         
       // 2. 移除所有 source 元素  
       const sources = video.querySelectorAll('source');  
@@ -1390,14 +1390,23 @@ useEffect(() => {
         
       // 6. 🔑 关键:从 DOM 中移除 video 元素  
       video.remove();  
-      console.log('🛑 已彻底清理 video 元素');  
-    }  
-      
-    // ... 其他清理逻辑  
-  } catch (err) {  
-    console.warn('清理播放器资源时出错:', err);  
-  }  
-}
+      console.log('🛑 已彻底清理 video 元素');
+    }
+        // 1. 清理弹幕插件的WebWorker
+        if (artPlayerRef.current.plugins?.artplayerPluginDanmuku) {
+          const danmukuPlugin = artPlayerRef.current.plugins.artplayerPluginDanmuku;
+          
+          // 尝试获取并清理WebWorker
+          if (danmukuPlugin.worker && typeof danmukuPlugin.worker.terminate === 'function') {
+            danmukuPlugin.worker.terminate();
+            console.log('弹幕WebWorker已清理');
+          }
+          
+          // 清空弹幕数据
+          if (typeof danmukuPlugin.reset === 'function') {
+            danmukuPlugin.reset();
+          }
+        }
 
         // 2. 销毁HLS实例
         if (artPlayerRef.current.video.hls) {
