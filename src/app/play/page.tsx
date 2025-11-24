@@ -4018,32 +4018,35 @@ useEffect(() => {
         });
 
         // 👇 添加防抖优化的 banana 转码 seek 支持
-let seekTimeout: NodeJS.Timeout | null = null;  
-let isSwitchingQuality = false;  // ← 添加标志位  
-  
+        let seekTimeout: NodeJS.Timeout | null = null;
 artPlayerRef.current.on('seek', (currentTime: number) => {  
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
+  console.log(` [前端 Seek] 触发 seek 事件`);  
+  console.log(` [前端 Seek] currentTime 参数: ${currentTime}s`);  
+  console.log(` [前端 Seek] 播放器实际时间: ${artPlayerRef.current.currentTime}s`);  
+  console.log(` [前端 Seek] 当前 videoUrl: ${videoUrl}`);  
+  console.log(` [前端 Seek] source: ${detail?.source}`);  
+    
   if (detail?.source === 'banana' && videoUrl.includes('/t/')) {  
-    // ← 如果正在切换质量,忽略这次 seek 事件  
-    if (isSwitchingQuality) {  
-      console.log('⏸️ 忽略 switchQuality 触发的 seek 事件');  
-      return;  
+    if (seekTimeout) {  
+      console.log(` [前端 Seek] 清除之前的定时器`);  
+      clearTimeout(seekTimeout);  
     }  
       
-    if (seekTimeout) clearTimeout(seekTimeout);  
     seekTimeout = setTimeout(() => {  
       const baseUrl = videoUrl.split('?')[0];  
       const params = new URLSearchParams(videoUrl.split('?')[1] || '');  
-      params.set('start', currentTime.toString());  
-      const newUrl = `${baseUrl}?${params.toString()}`;  
-      console.log(`⏩ 跳转到 ${currentTime.toFixed(2)}s`);  
         
-      isSwitchingQuality = true;  // ← 设置标志位  
-      artPlayerRef.current.switchQuality(newUrl).then(() => {  
-        // ← 切换完成后重置标志位  
-        setTimeout(() => {  
-          isSwitchingQuality = false;  
-        }, 1000);  
-      });  
+      console.log(` [前端 Seek] 原始 params: ${params.toString()}`);  
+      params.set('start', currentTime.toString());  
+      console.log(` [前端 Seek] 设置 start=${currentTime}`);  
+        
+      const newUrl = `${baseUrl}?${params.toString()}`;  
+      console.log(` [前端 Seek] 新 URL: ${newUrl}`);  
+      console.log(`⏩ 跳转到 ${currentTime.toFixed(2)}s`);  
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
+        
+      artPlayerRef.current.switchQuality(newUrl);  
     }, 500);  
   }  
 });
