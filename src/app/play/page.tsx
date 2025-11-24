@@ -93,10 +93,6 @@ function PlayPageClient() {
   const isDraggingProgressRef = useRef(false);
   const seekResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🔑 添加 banana seek 定时器 ref
-  const bananaSeekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const bananaMetadataAbortRef = useRef<AbortController | null>(null);
-
   // resize事件防抖管理
   const resizeResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -277,11 +273,7 @@ function PlayPageClient() {
   const [videoUrl, setVideoUrl] = useState('');
   // 获取 banana 元数据
 useEffect(() => {
-	  console.log('🔍 [元数据] useEffect 触发:', {  
-    source: detail?.source,  
-    videoUrl: videoUrl  
-  });  
-  const fetchBananaMetadata = async () => { 
+  const fetchBananaMetadata = async () => {
     if (detail?.source !== 'banana' || !videoUrl) return;
     
     const match = videoUrl.match(/\/[rt]\/([^.]+)/);
@@ -290,17 +282,8 @@ useEffect(() => {
     const fileId = match[1];
     console.log('🔍 正在获取 banana 元数据:', fileId);
 
-    // 🔑 中止之前的请求
-    if (bananaMetadataAbortRef.current) {
-      bananaMetadataAbortRef.current.abort();
-    }
-
-    bananaMetadataAbortRef.current = new AbortController()
-    console.log('🔍 [元数据] 开始获取元数据:', fileId);
     try {
-      const response = await fetch(`http://us.199301.xyz:4000/info/${fileId}`,  
-        { signal: bananaMetadataAbortRef.current.signal }  // 🔑 添加 signal
-      );
+      const response = await fetch(`http://us.199301.xyz:4000/info/${fileId}`);
       const data = await response.json();
       setBananaMetadata(data);
       console.log('✅ Banana 元数据获取成功:', data);
@@ -344,8 +327,8 @@ useEffect(() => {
               return item.html;
             },
           });
-      console.log(`✅ [内嵌字幕] 内嵌字幕菜单已添加, 当前设置项数量: ${artPlayerRef.current.setting.option.length}`);
-      }  
+          console.log(`✅ [内嵌字幕] 内嵌字幕菜单已添加, 当前设置项数量: ${artPlayerRef.current.setting.option.length}`);
+          }
       } else {  
       // 👇 第二个日志加在这里  
       console.log(`ℹ️ [内嵌字幕] 内嵌字幕项已存在,跳过添加`);  
@@ -389,19 +372,10 @@ useEffect(() => {
       }
       
     } catch (error) {
-      // 🔑 处理中止错误  
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('🛑 Banana 元数据请求已取消');
-        return;
-      }
       console.error('❌ 获取 banana 元数据失败:', error);
     }
   };
-
   fetchBananaMetadata();
-  return () => {  
-    console.log('🔍 [元数据] useEffect 清理');  
-  }; 
 }, [detail?.source, videoUrl]);
   // 总集数
   const totalEpisodes = detail?.episodes?.length || 0;
@@ -1362,25 +1336,7 @@ useEffect(() => {
   };
 
   // 清理播放器资源的统一函数（添加更完善的清理逻辑）
-   const cleanupPlayer = () => {  
-  console.log('🔍 [清理] 开始清理播放器');  
-  console.log('🔍 [清理] 当前状态:', {  
-    hasPlayer: !!artPlayerRef.current,  
-    hasVideo: !!artPlayerRef.current?.video,  
-    videoSrc: artPlayerRef.current?.video?.src,  
-    videoPaused: artPlayerRef.current?.video?.paused,  
-    bananaSeekTimeout: !!bananaSeekTimeoutRef.current,  
-    bananaMetadataAbort: !!bananaMetadataAbortRef.current  
-  });  
-    
-  // 清理 banana seek 定时器  
-  if (bananaSeekTimeoutRef.current) {  
-    clearTimeout(bananaSeekTimeoutRef.current);  
-    bananaSeekTimeoutRef.current = null;  
-    console.log('🛑 已清理 banana seek 定时器');  
-  } else {  
-    console.log('ℹ️ banana seek 定时器为空');  
-  }  
+  const cleanupPlayer = () => {
     // 🚀 新增：清理弹幕优化相关的定时器
     if (danmuOperationTimeoutRef.current) {
       clearTimeout(danmuOperationTimeoutRef.current);
@@ -1398,50 +1354,50 @@ useEffect(() => {
     if (artPlayerRef.current) {
       try {
         // 👇 在这里添加 video 元素清理,用于停止转码
-        const video = artPlayerRef.current.video as HTMLVideoElement; 
-    if (video) {
-		console.log('🔍 [清理] video 元素状态:', {  
-    src: video.src,  
-    currentSrc: video.currentSrc,  
-    networkState: video.networkState,  
-    readyState: video.readyState,  
-    paused: video.paused  
-  });
-      video.pause();
-	  console.log('✅ video.pause() 已调用');
-      const sources = video.querySelectorAll('source');
-      sources.forEach(s => s.remove());
-      video.src = '';
-	  console.log('✅ video.src 已清空');
-      video.removeAttribute('src');
-      video.load();
-	  console.log('✅ video.load() 已调用');
-	    // 100ms 后验证  
-  setTimeout(() => {  
-    console.log('🔍 [清理] 100ms后验证:', {  
-      src: video.src,  
-      networkState: video.networkState,  
-      paused: video.paused  
-    });  
-  }, 100); 
-      video.remove();
-      console.log('🛑 已彻底清理 video 元素');
-    }
-        // 1. 清理弹幕插件的WebWorker
-        if (artPlayerRef.current.plugins?.artplayerPluginDanmuku) {
-          const danmukuPlugin = artPlayerRef.current.plugins.artplayerPluginDanmuku;
-          
-          // 尝试获取并清理WebWorker
-          if (danmukuPlugin.worker && typeof danmukuPlugin.worker.terminate === 'function') {
-            danmukuPlugin.worker.terminate();
-            console.log('弹幕WebWorker已清理');
-          }
-          
-          // 清空弹幕数据
-          if (typeof danmukuPlugin.reset === 'function') {
-            danmukuPlugin.reset();
-          }
-        }
+        const video = artPlayerRef.current.video as HTMLVideoElement;
+        if (video) {  
+      console.log('🔍 [清理] video 元素状态:', {  
+        src: video.src,  
+        networkState: video.networkState,  
+        paused: video.paused  
+      });  
+        
+      // 1. 暂停播放  
+      video.pause();  
+      console.log('✅ video.pause() 已调用');  
+        
+      // 2. 移除所有 source 元素  
+      const sources = video.querySelectorAll('source');  
+      sources.forEach(s => s.remove());  
+        
+      // 3. 清空 src 并移除属性  
+      video.src = '';  
+      console.log('✅ video.src 已清空');  
+      video.removeAttribute('src');  
+        
+      // 4. 触发 load() 中止网络请求  
+      video.load();  
+      console.log('✅ video.load() 已调用');  
+        
+      // 5. 验证清理效果  
+      setTimeout(() => {  
+        console.log('🔍 [清理] 100ms后验证:', {  
+          src: video.src,  
+          networkState: video.networkState,  
+          paused: video.paused  
+        });  
+      }, 100);  
+        
+      // 6. 🔑 关键:从 DOM 中移除 video 元素  
+      video.remove();  
+      console.log('🛑 已彻底清理 video 元素');  
+    }  
+      
+    // ... 其他清理逻辑  
+  } catch (err) {  
+    console.warn('清理播放器资源时出错:', err);  
+  }  
+}
 
         // 2. 销毁HLS实例
         if (artPlayerRef.current.video.hls) {
@@ -3572,16 +3528,7 @@ useEffect(() => {
       // 监听播放器事件
       artPlayerRef.current.on('ready', async () => {
         setError(null);
-  // 监听所有可能的 URL 变化  
-  const originalSwitchQuality = artPlayerRef.current.switchQuality;  
-artPlayerRef.current.switchQuality = function(...args: any[]) {    
-  console.log('🔔 [监控] switchQuality 被调用:', {    
-    url: args[0],  
-    timestamp: new Date().getTime(),  
-    stack: new Error().stack    
-  });  
-  return originalSwitchQuality.apply(this, args);    
-};
+
         // iOS设备自动播放优化：如果是静音启动的，在开始播放后恢复音量
         if ((isIOS || isSafari) && artPlayerRef.current.muted) {
           console.log('iOS设备静音自动播放，准备在播放开始后恢复音量');
@@ -4057,19 +4004,17 @@ artPlayerRef.current.switchQuality = function(...args: any[]) {
           }
         });
         // 👇 添加防抖优化的 banana 转码 seek 支持
+        let seekTimeout: NodeJS.Timeout | null = null;
+
         artPlayerRef.current.on('seek', (currentTime: number) => {
           if (detail?.source === 'banana' && videoUrl.includes('/t/')) {
             // 清除之前的定时器,避免频繁触发
-            if (bananaSeekTimeoutRef.current) {
-              clearTimeout(bananaSeekTimeoutRef.current);
-            }
-
+            if (seekTimeout) clearTimeout(seekTimeout);
             // 延迟 500ms 执行,只在用户停止拖动后才重新加载
-            bananaSeekTimeoutRef.current = setTimeout(() => {
+            seekTimeout = setTimeout(() => {
               const baseUrl = videoUrl.split('?')[0];
               const params = new URLSearchParams(videoUrl.split('?')[1] || '');
               params.set('start', currentTime.toString());
-
               const newUrl = `${baseUrl}?${params.toString()}`;
               console.log(`⏩ 跳转到 ${currentTime.toFixed(2)}s`);
               artPlayerRef.current.switchQuality(newUrl);
@@ -4416,7 +4361,6 @@ artPlayerRef.current.switchQuality = function(...args: any[]) {
 
   // 当组件卸载时清理定时器、Wake Lock 和播放器资源
   useEffect(() => {
-	console.log('🔍 [生命周期] 播放页面组件已挂载');
     return () => {
       // 清理定时器
       if (saveIntervalRef.current) {
@@ -4435,14 +4379,8 @@ artPlayerRef.current.switchQuality = function(...args: any[]) {
 
       // 释放 Wake Lock
       releaseWakeLock();
-    console.log('🔍 [生命周期] 播放页面组件即将卸载');  
-    console.log('🔍 [生命周期] 当前播放器状态:', {  
-      hasPlayer: !!artPlayerRef.current,  
-      videoUrl: artPlayerRef.current?.url  
-    });
       // 销毁播放器实例
       cleanupPlayer();
-	  console.log('✅ [生命周期] cleanupPlayer 调用完成'); 
     };
   }, []);
 
