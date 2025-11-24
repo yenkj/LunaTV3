@@ -4017,43 +4017,87 @@ useEffect(() => {
           }
         });
 
-        // 👇 添加防抖优化的 banana 转码 seek 支持
+        // 👇 添加防抖优化的 banana 转码 seek 支持  
 let seekTimeout: NodeJS.Timeout | null = null;  
-let isSwitchingQuality = false;  // 防止递归  
+let isSwitchingQuality = false;  
   
 artPlayerRef.current.on('seek', (currentTime: number) => {  
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
+  console.log(` [前端 Seek] 触发 seek 事件`);  
+  console.log(` [前端 Seek] currentTime 参数: ${currentTime}s`);  
+  console.log(` [前端 Seek] 播放器实际时间: ${artPlayerRef.current?.currentTime}s`);  
+  console.log(` [前端 Seek] 当前 videoUrl: ${videoUrl}`);  
+  console.log(` [前端 Seek] source: ${detail?.source}`);  
+  console.log(` [前端 Seek] isSwitchingQuality: ${isSwitchingQuality}`);  
+    
   if (detail?.source === 'banana' && videoUrl.includes('/t/')) {  
+    // 如果正在切换质量,忽略这次 seek  
     if (isSwitchingQuality) {  
-      console.log('⏸️ 忽略 switchQuality 触发的 seek');  
+      console.log('⏸️ [前端 Seek] 忽略 switchQuality 触发的 seek');  
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
       return;  
     }  
       
-    if (seekTimeout) clearTimeout(seekTimeout);  
-    seekTimeout = setTimeout(async () => {  
+    if (seekTimeout) {  
+      console.log(` [前端 Seek] 清除之前的定时器`);  
+      clearTimeout(seekTimeout);  
+    }  
+      
+    seekTimeout = setTimeout(() => {  
       const targetTime = currentTime;  // 保存目标时间  
       const baseUrl = videoUrl.split('?')[0];  
       const params = new URLSearchParams(videoUrl.split('?')[1] || '');  
-      params.set('start', targetTime.toString());  
-      const newUrl = `${baseUrl}?${params.toString()}`;  
         
+      console.log(` [前端 Seek] 原始 params: ${params.toString()}`);  
+      params.set('start', targetTime.toString());  
+      console.log(` [前端 Seek] 设置 start=${targetTime}`);  
+        
+      const newUrl = `${baseUrl}?${params.toString()}`;  
+      console.log(` [前端 Seek] 新 URL: ${newUrl}`);  
       console.log(`⏩ 跳转到 ${targetTime.toFixed(2)}s`);  
         
+      // 设置标志位  
       isSwitchingQuality = true;  
-      await artPlayerRef.current.switchQuality(newUrl);  
+      console.log(` [前端 Seek] 设置 isSwitchingQuality = true`);  
         
-      // ✅ 关键修复: switchQuality 完成后,手动设置播放器时间  
-      artPlayerRef.current.on('video:canplay', function seekToTarget() {  
+      // 监听一次 loadedmetadata 事件  
+      const onLoadedMetadata = () => {  
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);  
+        console.log(`✅ [视频加载] 元数据已加载`);  
+        console.log(` [视频加载] 目标时间: ${targetTime.toFixed(2)}s`);  
+        console.log(` [视频加载] 当前播放器时间: ${artPlayerRef.current?.currentTime}s`);  
+          
+        // 先重置标志位,避免下面的 currentTime 设置触发 seek 时被拦截  
+        isSwitchingQuality = false;  
+        console.log(` [视频加载] 重置 isSwitchingQuality = false`);  
+          
+        // 设置播放时间  
+        console.log(` [视频加载] 设置 currentTime = ${targetTime.toFixed(2)}s`);  
         artPlayerRef.current.currentTime = targetTime;  
-        console.log(`✅ 已跳转到目标时间: ${targetTime.toFixed(2)}s`);  
+        console.log(` [视频加载] 设置完成,当前时间: ${artPlayerRef.current?.currentTime}s`);  
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);  
           
-        // 只执行一次  
-        artPlayerRef.current.off('video:canplay', seekToTarget);  
-          
-        setTimeout(() => {  
-          isSwitchingQuality = false;  
-        }, 1000);  
+        // 移除监听器  
+        artPlayerRef.current.off('video:loadedmetadata', onLoadedMetadata);  
+      };  
+        
+      console.log(` [前端 Seek] 注册 loadedmetadata 监听器`);  
+      artPlayerRef.current.on('video:loadedmetadata', onLoadedMetadata);  
+        
+      console.log(` [前端 Seek] 调用 switchQuality(${newUrl})`);  
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
+        
+      // 切换质量  
+      artPlayerRef.current.switchQuality(newUrl).catch((err) => {  
+        console.error('❌ [switchQuality] 失败:', err);  
+        isSwitchingQuality = false;  
+        console.log(` [switchQuality] 错误恢复,重置 isSwitchingQuality = false`);  
+        artPlayerRef.current.off('video:loadedmetadata', onLoadedMetadata);  
       });  
     }, 500);  
+  } else {  
+    console.log(` [前端 Seek] 不是 banana 源或不是 /t/ 端点,跳过处理`);  
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
   }  
 });
         // 监听拖拽状态 - v5.2.0优化: 在拖拽期间暂停弹幕更新以减少闪烁
