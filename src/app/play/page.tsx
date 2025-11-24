@@ -4039,61 +4039,44 @@ useEffect(() => {
 		  
 // 修改 seek 事件处理    
 let seekTimeout: NodeJS.Timeout | null = null;  
-let seekTargetTime = 0; // 存储用户拖动的目标时间  
-  
-artPlayerRef.current.on('seek', (currentTime: number) => {  
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
-  console.log(` [前端 Seek] 触发 seek 事件`);  
-  console.log(` [前端 Seek] currentTime 参数: ${currentTime}s`);  
-  console.log(` [前端 Seek] 播放器当前 URL: ${artPlayerRef.current?.url}`);  
-  console.log(` [前端 Seek] 播放器实际 currentTime: ${artPlayerRef.current?.currentTime}s`);  
-  console.log(` [前端 Seek] 捕获的目标时间: ${seekTargetTime}s`); // 🆕 添加这行  
-  console.log(` [前端 Seek] 参数与实际差值: ${Math.abs(currentTime - (artPlayerRef.current?.currentTime || 0)).toFixed(2)}s`);  
-  console.log(` [前端 Seek] 播放器 seeking 状态: ${artPlayerRef.current?.seeking}`);  
-  console.log(` [前端 Seek] seekTimeout 状态: ${seekTimeout ? '存在' : 'null'}`);  
-  console.log(` [前端 Seek] 触发时间戳: ${Date.now()}`);  
-      
+let lastKnownTime = 0; // 🆕 持续记录播放器的最后已知时间
+
+        // 监听拖拽状态 - v5.2.0优化: 在拖拽期间暂停弹幕更新以减少闪烁
+artPlayerRef.current.on('video:seeking', () => {  
+  // 🆕 添加诊断日志  
+  console.log('🔍 [video:seeking] ═══════════════════════════');  
+  console.log(`🔍 [video:seeking] 开始拖动`);  
+  console.log(`🔍 [video:seeking] 播放器当前 currentTime: ${artPlayerRef.current?.currentTime}s`);  
+  console.log(`🔍 [video:seeking] 使用最后已知时间: ${lastKnownTime}s`);  
+  console.log(`🔍 [video:seeking] 当前 URL: ${artPlayerRef.current?.url}`);  
+  console.log(`🔍 [video:seeking] 时间戳: ${Date.now()}`);  
+  console.log('🔍 [video:seeking] ═══════════════════════════');  
+    
+  isDraggingProgressRef.current = true;  
+    
+  // 🆕 处理 banana seek  
   if (detail?.source === 'banana' && artPlayerRef.current?.url?.includes('/t/')) {  
     if (seekTimeout) {  
-      console.log(` [前端 Seek] 清除之前的定时器`);  
+      console.log(`🔍 [video:seeking] 清除之前的定时器`);  
       clearTimeout(seekTimeout);  
     }  
-        
+      
     seekTimeout = setTimeout(() => {  
       const currentUrl = artPlayerRef.current.url;  
       const baseUrl = currentUrl.split('?')[0];  
-        
-      // 🆕 关键修改: 使用捕获的目标时间,而不是 currentTime 参数  
-      const targetTime = seekTargetTime;  
+      const targetTime = lastKnownTime; // 使用最后已知时间  
       const newUrl = `${baseUrl}?start=${targetTime}`;  
-          
-      console.log(` [前端 Seek Timeout] ═══ 500ms 后执行 ═══`);  
-      console.log(` [前端 Seek Timeout] 闭包捕获的 currentTime: ${currentTime}s`);  
-      console.log(` [前端 Seek Timeout] 使用目标时间: ${targetTime}s`);  
-      console.log(` [前端 Seek Timeout] 当前 URL: ${currentUrl}`);  
-      console.log(` [前端 Seek Timeout] 基础 URL: ${baseUrl}`);  
-      console.log(` [前端 Seek Timeout] 新 URL: ${newUrl}`);  
+        
+      console.log(` [video:seeking Timeout] ═══ 500ms 后执行 ═══`);  
+      console.log(` [video:seeking Timeout] 使用最后已知时间: ${targetTime}s`);  
+      console.log(` [video:seeking Timeout] 当前 URL: ${currentUrl}`);  
+      console.log(` [video:seeking Timeout] 新 URL: ${newUrl}`);  
       console.log(`⏩ 跳转到 ${targetTime.toFixed(2)}s`);  
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
-          
+        
       artPlayerRef.current.switchQuality(newUrl);  
     }, 500);  
-  } else {  
-    console.log(` [前端 Seek] 不满足条件,跳过处理`);  
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
   }  
-});
-        // 监听拖拽状态 - v5.2.0优化: 在拖拽期间暂停弹幕更新以减少闪烁
-        artPlayerRef.current.on('video:seeking', () => {
-		  seekTargetTime = artPlayerRef.current?.currentTime || 0;  
-  console.log(`🔍 [video:seeking] 捕获目标时间: ${seekTargetTime}s`);
-  console.log('🔍 [video:seeking] ═══════════════════════════');  
-  console.log(`🔍 [video:seeking] 开始拖动`);  
-  console.log(`🔍 [video:seeking] 当前时间: ${artPlayerRef.current?.currentTime}s`);  
-  console.log(`🔍 [video:seeking] 当前 URL: ${artPlayerRef.current?.url}`);  
-  console.log(`🔍 [video:seeking] 时间戳: ${Date.now()}`);  
-  console.log('🔍 [video:seeking] ═══════════════════════════');
-          isDraggingProgressRef.current = true;
           // v5.2.0新增: 拖拽时隐藏弹幕，减少CPU占用和闪烁
           // 只有在外部弹幕开启且当前显示时才隐藏
           if (artPlayerRef.current?.plugins?.artplayerPluginDanmuku && 
@@ -4103,14 +4086,15 @@ artPlayerRef.current.on('seek', (currentTime: number) => {
           }
         });
 
-        artPlayerRef.current.on('video:seeked', () => {
+artPlayerRef.current.on('video:seeked', () => {  
   console.log('✅ [video:seeked] ═══════════════════════════');  
   console.log(`✅ [video:seeked] 拖动结束`);  
   console.log(`✅ [video:seeked] 最终时间: ${artPlayerRef.current?.currentTime}s`);  
   console.log(`✅ [video:seeked] 当前 URL: ${artPlayerRef.current?.url}`);  
   console.log(`✅ [video:seeked] 时间戳: ${Date.now()}`);  
-  console.log('✅ [video:seeked] ═══════════════════════════'); 		
-          isDraggingProgressRef.current = false;
+  console.log('✅ [video:seeked] ═══════════════════════════');  
+    
+  isDraggingProgressRef.current = false;
           // v5.2.0优化: 拖拽结束后根据外部弹幕开关状态决定是否恢复弹幕显示
           if (artPlayerRef.current?.plugins?.artplayerPluginDanmuku) {
             // 只有在外部弹幕开启时才恢复显示
@@ -4360,14 +4344,20 @@ artPlayerRef.current.on('seek', (currentTime: number) => {
       });
 
       // 合并的timeupdate监听器 - 处理跳过片头片尾和保存进度
-      artPlayerRef.current.on('video:timeupdate', () => {
-        const currentTime = artPlayerRef.current.currentTime || 0;
-        const duration = artPlayerRef.current.duration || 0;
-        const now = performance.now(); // 使用performance.now()更精确
-
-        // 更新 SkipController 所需的时间信息
-        setCurrentPlayTime(currentTime);
-        setVideoDuration(duration);
+artPlayerRef.current.on('video:timeupdate', () => {  
+  const currentTime = artPlayerRef.current.currentTime || 0;  
+  const duration = artPlayerRef.current.duration || 0;  
+  const now = performance.now();  
+    
+  // 🆕 在非拖动状态下持续记录最后已知时间  
+  if (!isDraggingProgressRef.current) {  
+    lastKnownTime = currentTime;  
+    console.log(`⏱️ [timeupdate] 记录最后已知时间: ${lastKnownTime.toFixed(2)}s`);  
+  }  
+  
+  // 更新 SkipController 所需的时间信息  
+  setCurrentPlayTime(currentTime);  
+  setVideoDuration(duration);  
 
         // 保存播放进度逻辑 - 优化保存间隔以减少网络开销
         const saveNow = Date.now();
