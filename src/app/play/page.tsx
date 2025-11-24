@@ -4028,16 +4028,18 @@ artPlayerRef.current.on('seek', (currentTime: number) => {
   console.log(` [前端 Seek] isSwitchingQuality: ${isSwitchingQuality}`);  
     
   if (detail?.source === 'banana' && videoUrl.includes('/t/')) {  
-    // ✅ 只保留这一个过滤: 忽略 switchQuality 触发的 seek  
     if (isSwitchingQuality) {  
       console.log('⏸️ [前端 Seek] 忽略 switchQuality 触发的 seek');  
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
       return;  
     }  
       
+    // ✅ 关键修复: 立即保存 currentTime 的值到 const 变量  
+    const targetTime = currentTime;  
+      
     if (seekTimeout) clearTimeout(seekTimeout);  
     seekTimeout = setTimeout(() => {  
-      const targetTime = currentTime;  
+      // 使用保存的 targetTime,而不是闭包中的 currentTime  
       const baseUrl = videoUrl.split('?')[0];  
       const params = new URLSearchParams(videoUrl.split('?')[1] || '');  
       params.set('start', targetTime.toString());  
