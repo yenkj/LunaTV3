@@ -92,7 +92,7 @@ function PlayPageClient() {
   // 进度条拖拽状态管理
   const isDraggingProgressRef = useRef(false);
   const seekResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
+  
   // resize事件防抖管理
   const resizeResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -277,11 +277,9 @@ useEffect(() => {
     if (detail?.source !== 'banana' || !videoUrl) return;
     
     const match = videoUrl.match(/\/[rt]\/([^.]+)/);
-    if (!match) return;
-      
+    if (!match) return;     
     const fileId = match[1];
     console.log('🔍 正在获取 banana 元数据:', fileId);
-
     try {
       const response = await fetch(`http://us.199301.xyz:4000/info/${fileId}`);
       const data = await response.json();
@@ -1203,7 +1201,7 @@ useEffect(() => {
       }
     } else {
       // 普通视频格式
-      let newUrl = episodeData || '';  // ✅ 改为 let
+      let newUrl = episodeData || '';
 
       // 🎬 添加转码逻辑: 如果是 banana 源且是 /r/ 端点,转换为 /t/ 转码端点
       if (detailData.source === 'banana' && newUrl.includes('/r/')) {
@@ -1350,29 +1348,22 @@ useEffect(() => {
     
     // 清理弹幕状态引用
     danmuPluginStateRef.current = null;
-
+    
     if (artPlayerRef.current) {
       try {
-        // 👇 在这里添加 video 元素清理,用于停止转码
+        // 添加 video 元素清理,用于停止转码
         const video = artPlayerRef.current.video as HTMLVideoElement;
+        // 中止所有网络请求
         if (video) {
-      // 1. 暂停播放
-      video.pause();
-
-      // 2. 移除所有 source 元素
-      const sources = video.querySelectorAll('source');
-      sources.forEach(s => s.remove());
-
-      // 3. 清空 src 并移除属性
-      video.src = '';
-      video.removeAttribute('src');
-
-      // 4. 触发 load() 中止网络请求
-      video.load();
-      // 5. 🔑 关键:从 DOM 中移除 video 元素
-      video.remove();
-      console.log('🛑 已彻底清理 video 元素');
-    }
+          video.pause();
+          const sources = video.querySelectorAll('source');
+          sources.forEach(s => s.remove());
+          video.src = '';
+          video.removeAttribute('src');
+          video.load();
+          video.remove();
+          console.log('🛑 已中止视频加载');
+        }
         // 1. 清理弹幕插件的WebWorker
         if (artPlayerRef.current.plugins?.artplayerPluginDanmuku) {
           const danmukuPlugin = artPlayerRef.current.plugins.artplayerPluginDanmuku;
@@ -1825,7 +1816,7 @@ useEffect(() => {
         }
       })();
     }
-  }, [detail, currentEpisodeIndex, videoUrl]); // 添加 videoUrl 依赖
+  }, [detail, currentEpisodeIndex, videoUrl]);
 
   // 进入页面时直接获取全部源信息
   useEffect(() => {
@@ -2754,6 +2745,7 @@ useEffect(() => {
       console.error('切换收藏失败:', err);
     }
   };
+
 // 🆕 独立的字幕检测 - 不依赖播放器加载状态
 useEffect(() => {
   const detectSubtitlesIndependently = async () => {
@@ -3597,58 +3589,58 @@ useEffect(() => {
         // 应用CSS优化
         optimizeDanmukuControlsCSS();
 
-// 🆕 自动检测并加载字幕
-(async () => {
-  try {
-    console.log('🔍 [初始化] 开始检测字幕文件...');
-    console.log('🔍 [初始化] 当前 videoUrl:', videoUrl);
-    const autoSubtitles = await autoLoadSubtitles(videoUrl);
+		// 🆕 自动检测并加载字幕
+		(async () => {
+		  try {
+			console.log('🔍 [初始化] 开始检测字幕文件...');
+			console.log('🔍 [初始化] 当前 videoUrl:', videoUrl);
+			const autoSubtitles = await autoLoadSubtitles(videoUrl);
 
-    if (autoSubtitles.length > 0) {
-      console.log('✅ [初始化] 检测到字幕文件:', autoSubtitles);
+			if (autoSubtitles.length > 0) {
+			  console.log('✅ [初始化] 检测到字幕文件:', autoSubtitles);
 
-      // ✅ 只更新状态,触发 V8 useEffect
-      setLoadedSubtitleUrls(autoSubtitles);
+			  // ✅ 只更新状态,触发 V8 useEffect
+			  setLoadedSubtitleUrls(autoSubtitles);
 
-      // ✅ 添加设置菜单
-      artPlayerRef.current.setting.add({
-        html: '外部字幕',
-        tooltip: autoSubtitles.length > 0 ? `当前:${autoSubtitles[0].filename}` : '当前:关闭',
-        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>',
-        selector: [
-          { html: '关闭', value: 'off' },
-          ...autoSubtitles.map((sub) => ({
-            html: sub.filename,
-            value: sub.url,
-            subtitle: { url: sub.url, type: sub.type },
-          })),
-        ],
-        onSelect: function (item: any) {
-          if (item.value === 'off') {
-            if (artPlayerRef.current) {
-              artPlayerRef.current.subtitle.show = false;
-            }
-            return '关闭';
-          }
+			  // ✅ 添加设置菜单
+			  artPlayerRef.current.setting.add({
+				html: '外部字幕',
+				tooltip: autoSubtitles.length > 0 ? `当前:${autoSubtitles[0].filename}` : '当前:关闭',
+				icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>',
+				selector: [
+				  { html: '关闭', value: 'off' },
+				  ...autoSubtitles.map((sub) => ({
+					html: sub.filename,
+					value: sub.url,
+					subtitle: { url: sub.url, type: sub.type },
+				  })),
+				],
+				onSelect: function (item: any) {
+				  if (item.value === 'off') {
+					if (artPlayerRef.current) {
+					  artPlayerRef.current.subtitle.show = false;
+					}
+					return '关闭';
+				  }
 
-          if (artPlayerRef.current) {
-            artPlayerRef.current.subtitle.switch(item.subtitle.url, {
-              type: item.subtitle.type,
-            });
-            artPlayerRef.current.subtitle.show = true;
-          }
-          return item.html;
-        },
-      });
+				  if (artPlayerRef.current) {
+					artPlayerRef.current.subtitle.switch(item.subtitle.url, {
+					  type: item.subtitle.type,
+					});
+					artPlayerRef.current.subtitle.show = true;
+				  }
+				  return item.html;
+				},
+			  });
 
-      console.log('✅ [初始化] 设置菜单已添加,等待 V8 useEffect 加载字幕');
-    } else {
-      console.log('📭 未检测到字幕文件');
-    }
-  } catch (error) {
-    console.warn('⚠️ 自动加载字幕失败:', error);
-  }
-})();
+			  console.log('✅ [初始化] 设置菜单已添加,等待 V8 useEffect 加载字幕');
+			} else {
+			  console.log('📭 未检测到字幕文件');
+			}
+		  } catch (error) {
+			console.warn('⚠️ 自动加载字幕失败:', error);
+		  }
+		})();
 
         // 精确解决弹幕菜单与进度条拖拽冲突 - 基于ArtPlayer原生拖拽逻辑
         const fixDanmakuProgressConflict = () => {
@@ -3993,9 +3985,9 @@ useEffect(() => {
             }, 500); // 增加到500ms延迟，减少频繁重置导致的闪烁
           }
         });
+
         // 👇 添加防抖优化的 banana 转码 seek 支持
         let seekTimeout: NodeJS.Timeout | null = null;
-
         artPlayerRef.current.on('seek', (currentTime: number) => {
           if (detail?.source === 'banana' && videoUrl.includes('/t/')) {
             // 清除之前的定时器,避免频繁触发
@@ -4369,6 +4361,7 @@ useEffect(() => {
 
       // 释放 Wake Lock
       releaseWakeLock();
+
       // 销毁播放器实例
       cleanupPlayer();
     };
