@@ -4018,35 +4018,41 @@ useEffect(() => {
         });
 
         // 👇 添加防抖优化的 banana 转码 seek 支持
-        let seekTimeout: NodeJS.Timeout | null = null;
+let seekTimeout: NodeJS.Timeout | null = null;  
+let isSwitchingQuality = false;  // 防止递归  
+  
 artPlayerRef.current.on('seek', (currentTime: number) => {  
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
-  console.log(` [前端 Seek] 触发 seek 事件`);  
-  console.log(` [前端 Seek] currentTime 参数: ${currentTime}s`);  
-  console.log(` [前端 Seek] 播放器实际时间: ${artPlayerRef.current.currentTime}s`);  
-  console.log(` [前端 Seek] 当前 videoUrl: ${videoUrl}`);  
-  console.log(` [前端 Seek] source: ${detail?.source}`);  
-    
   if (detail?.source === 'banana' && videoUrl.includes('/t/')) {  
-    if (seekTimeout) {  
-      console.log(` [前端 Seek] 清除之前的定时器`);  
-      clearTimeout(seekTimeout);  
+    if (isSwitchingQuality) {  
+      console.log('⏸️ 忽略 switchQuality 触发的 seek');  
+      return;  
     }  
       
-    seekTimeout = setTimeout(() => {  
+    if (seekTimeout) clearTimeout(seekTimeout);  
+    seekTimeout = setTimeout(async () => {  
+      const targetTime = currentTime;  // 保存目标时间  
       const baseUrl = videoUrl.split('?')[0];  
       const params = new URLSearchParams(videoUrl.split('?')[1] || '');  
-        
-      console.log(` [前端 Seek] 原始 params: ${params.toString()}`);  
-      params.set('start', currentTime.toString());  
-      console.log(` [前端 Seek] 设置 start=${currentTime}`);  
-        
+      params.set('start', targetTime.toString());  
       const newUrl = `${baseUrl}?${params.toString()}`;  
-      console.log(` [前端 Seek] 新 URL: ${newUrl}`);  
-      console.log(`⏩ 跳转到 ${currentTime.toFixed(2)}s`);  
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
         
-      artPlayerRef.current.switchQuality(newUrl);  
+      console.log(`⏩ 跳转到 ${targetTime.toFixed(2)}s`);  
+        
+      isSwitchingQuality = true;  
+      await artPlayerRef.current.switchQuality(newUrl);  
+        
+      // ✅ 关键修复: switchQuality 完成后,手动设置播放器时间  
+      artPlayerRef.current.on('video:canplay', function seekToTarget() {  
+        artPlayerRef.current.currentTime = targetTime;  
+        console.log(`✅ 已跳转到目标时间: ${targetTime.toFixed(2)}s`);  
+          
+        // 只执行一次  
+        artPlayerRef.current.off('video:canplay', seekToTarget);  
+          
+        setTimeout(() => {  
+          isSwitchingQuality = false;  
+        }, 1000);  
+      });  
     }, 500);  
   }  
 });
