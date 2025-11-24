@@ -4017,45 +4017,39 @@ useEffect(() => {
           }
         });
 
-        // 👇 添加防抖优化的 banana 转码 seek 支持
+// 在组件顶部添加 ref  
+const videoUrlRef = useRef(videoUrl);  
+  
+// 同步最新值到 ref  
+useEffect(() => {  
+  videoUrlRef.current = videoUrl;  
+}, [videoUrl]);  
+  
+// 修改 seek 事件处理  
 let seekTimeout: NodeJS.Timeout | null = null;  
+  
 artPlayerRef.current.on('seek', (currentTime: number) => {  
-  // ✅ 添加详细日志  
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
   console.log(` [前端 Seek] 触发 seek 事件`);  
   console.log(` [前端 Seek] currentTime 参数: ${currentTime}s`);  
-  console.log(` [前端 Seek] 播放器实际时间: ${artPlayerRef.current?.currentTime}s`);  
-  console.log(` [前端 Seek] 当前 videoUrl: ${videoUrl}`);  
-  console.log(` [前端 Seek] source: ${detail?.source}`);  
+  console.log(` [前端 Seek] 当前 videoUrl: ${videoUrlRef.current}`); // ← 使用 ref  
     
-  if (detail?.source === 'banana' && videoUrl.includes('/t/')) {  
-    if (seekTimeout) {  
-      console.log(` [前端 Seek] 清除之前的定时器`);  
-      clearTimeout(seekTimeout);  
-    }  
-      
+  if (detail?.source === 'banana' && videoUrlRef.current.includes('/t/')) { // ← 使用 ref  
+    if (seekTimeout) clearTimeout(seekTimeout);  
     seekTimeout = setTimeout(() => {  
-      const baseUrl = videoUrl.split('?')[0];  
-      const params = new URLSearchParams(videoUrl.split('?')[1] || '');  
-        
-      console.log(` [前端 Seek] 原始 params: ${params.toString()}`);  
+      const baseUrl = videoUrlRef.current.split('?')[0]; // ← 使用 ref  
+      const params = new URLSearchParams(videoUrlRef.current.split('?')[1] || '');  
       params.set('start', currentTime.toString());  
-      console.log(` [前端 Seek] 设置 start=${currentTime}`);  
-        
       const newUrl = `${baseUrl}?${params.toString()}`;  
-      console.log(` [前端 Seek] 新 URL: ${newUrl}`);  
       console.log(`⏩ 跳转到 ${currentTime.toFixed(2)}s`);  
+      console.log(` [前端 Seek] 新 URL: ${newUrl}`);  
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
         
-      // ✅ 关键: switchQuality 后手动设置播放器时间  
       artPlayerRef.current.switchQuality(newUrl).then(() => {  
-        console.log(`✅ 已设置播放器时间为 ${currentTime.toFixed(2)}s`);  
         artPlayerRef.current.currentTime = currentTime;  
+        console.log(`✅ 已设置播放器时间为 ${currentTime.toFixed(2)}s`);  
       });  
     }, 500);  
-  } else {  
-    console.log(` [前端 Seek] 不满足条件,跳过处理`);  
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
   }  
 });
         // 监听拖拽状态 - v5.2.0优化: 在拖拽期间暂停弹幕更新以减少闪烁
