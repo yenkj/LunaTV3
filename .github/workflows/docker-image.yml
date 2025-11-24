@@ -82,7 +82,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv1
+          images: ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv3
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ steps.version_check.outputs.current_version }},enable=${{ steps.version_check.outputs.version_changed == 'true' }}
@@ -97,7 +97,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
-          outputs: type=image,name=ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv1,name-canonical=true,push=true
+          outputs: type=image,name=ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv3,name-canonical=true,push=true
           no-cache: true
           pull: true
 
@@ -174,19 +174,19 @@ jobs:
         working-directory: /tmp/digests
         run: |
           # Always create latest tag
-          docker buildx imagetools create -t ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv1:latest \
-            $(printf 'ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv1@sha256:%s ' *)
+          docker buildx imagetools create -t ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv3:latest \
+            $(printf 'ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv3@sha256:%s ' *)
 
           # Create version tag if version changed
           if [ "${{ steps.version_check.outputs.version_changed }}" = "true" ]; then
-            docker buildx imagetools create -t ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv1:${{ steps.version_check.outputs.current_version }} \
-              $(printf 'ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv1@sha256:%s ' *)
+            docker buildx imagetools create -t ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv3:${{ steps.version_check.outputs.current_version }} \
+              $(printf 'ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv3@sha256:%s ' *)
           fi
 
           # Create custom tag if provided
           if [ -n "${{ github.event.inputs.tag }}" ] && [ "${{ github.event.inputs.tag }}" != "latest" ]; then
-            docker buildx imagetools create -t ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv1:${{ github.event.inputs.tag }} \
-              $(printf 'ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv1@sha256:%s ' *)
+            docker buildx imagetools create -t ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv3:${{ github.event.inputs.tag }} \
+              $(printf 'ghcr.io/${{ steps.lowercase.outputs.owner }}/lunatv3@sha256:%s ' *)
           fi
 
   cleanup-refresh:
