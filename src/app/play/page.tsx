@@ -4037,51 +4037,57 @@ useEffect(() => {
           }
         });
 // 修改 seek 事件处理 		  
-let seekTimeout: NodeJS.Timeout | null = null;  
-artPlayerRef.current.on('seek', (currentTime: number) => {  
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
-  console.log(` [前端 Seek] 触发 seek 事件`);  
-  console.log(` [前端 Seek] currentTime 参数: ${currentTime}s`);  
-  console.log(` [前端 Seek] 播放器当前 URL: ${artPlayerRef.current?.url}`);  
+// 修改 seek 事件处理    
+let seekTimeout: NodeJS.Timeout | null = null;    
     
-  // 🆕 关键诊断日志  
+artPlayerRef.current.on('seek', (currentTime: number) => {    
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');    
+  console.log(` [前端 Seek] 触发 seek 事件`);    
+  console.log(` [前端 Seek] currentTime 参数: ${currentTime}s`);    
+  console.log(` [前端 Seek] 播放器当前 URL: ${artPlayerRef.current?.url}`);  
   console.log(` [前端 Seek] 播放器实际 currentTime: ${artPlayerRef.current?.currentTime}s`);  
   console.log(` [前端 Seek] 参数与实际差值: ${Math.abs(currentTime - (artPlayerRef.current?.currentTime || 0)).toFixed(2)}s`);  
-  console.log(` [前端 Seek] 播放器 seeking 状态: ${artPlayerRef.current?.seeking}`);  
-  console.log(` [前端 Seek] seekTimeout 状态: ${seekTimeout ? '存在' : 'null'}`);  
   console.log(` [前端 Seek] 触发时间戳: ${Date.now()}`);  
       
-  if (detail?.source === 'banana' && artPlayerRef.current?.url?.includes('/t/')) {  
-    if (seekTimeout) {  
-      console.log(` [前端 Seek] 清除之前的定时器`);  
-      clearTimeout(seekTimeout);  
-    }  
+  if (detail?.source === 'banana' && artPlayerRef.current?.url?.includes('/t/')) {    
+    if (seekTimeout) {    
+      console.log(` [前端 Seek] 清除之前的定时器`);    
+      clearTimeout(seekTimeout);    
+    }    
         
-    seekTimeout = setTimeout(() => {  
-      const currentUrl = artPlayerRef.current.url;  
+    seekTimeout = setTimeout(() => {    
+      const currentUrl = artPlayerRef.current.url;    
       const baseUrl = currentUrl.split('?')[0];  
-      const newUrl = `${baseUrl}?start=${currentTime}`;  
         
-      // 🆕 setTimeout 回调中的诊断日志  
+      // 🆕 关键修复:使用播放器实时的 currentTime,而不是闭包捕获的参数  
+      const targetTime = artPlayerRef.current.currentTime;  
+      const newUrl = `${baseUrl}?start=${targetTime}`;    
+          
       console.log(` [前端 Seek Timeout] ═══ 500ms 后执行 ═══`);  
       console.log(` [前端 Seek Timeout] 闭包捕获的 currentTime: ${currentTime}s`);  
-      console.log(` [前端 Seek Timeout] 播放器实际 currentTime: ${artPlayerRef.current?.currentTime}s`);  
-      console.log(` [前端 Seek Timeout] 当前 URL: ${currentUrl}`);  
-      console.log(` [前端 Seek Timeout] 基础 URL: ${baseUrl}`);  
-      console.log(` [前端 Seek Timeout] 新 URL: ${newUrl}`);  
-      console.log(`⏩ 跳转到 ${currentTime.toFixed(2)}s`);  
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
+      console.log(` [前端 Seek Timeout] 播放器实时 currentTime: ${targetTime}s`);  
+      console.log(` [前端 Seek Timeout] 当前 URL: ${currentUrl}`);    
+      console.log(` [前端 Seek Timeout] 基础 URL: ${baseUrl}`);    
+      console.log(` [前端 Seek Timeout] 新 URL: ${newUrl}`);    
+      console.log(`⏩ 跳转到 ${targetTime.toFixed(2)}s`);    
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');    
           
-      artPlayerRef.current.switchQuality(newUrl);  
-        
-      // 🆕 switchQuality 调用后  
-      console.log(` [前端 Seek Timeout] switchQuality 已调用`);  
-      console.log(` [前端 Seek Timeout] 调用后 URL: ${artPlayerRef.current?.url}`);  
-    }, 500);  
-  } else {  
-    console.log(` [前端 Seek] 不满足条件,跳过处理`);  
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');  
-  }  
+      // 🆕 添加 .then() 回调强制恢复播放时间  
+      artPlayerRef.current.switchQuality(newUrl).then(() => {  
+        console.log(` [前端 Seek Timeout] switchQuality 完成`);  
+        console.log(` [前端 Seek Timeout] 完成后播放器 currentTime: ${artPlayerRef.current?.currentTime}s`);  
+          
+        // 强制设置播放时间  
+        artPlayerRef.current.currentTime = targetTime;  
+          
+        console.log(` [前端 Seek Timeout] 已强制设置 currentTime 为: ${targetTime}s`);  
+        console.log(` [前端 Seek Timeout] 设置后播放器 currentTime: ${artPlayerRef.current?.currentTime}s`);  
+      });  
+    }, 500);    
+  } else {    
+    console.log(` [前端 Seek] 不满足条件,跳过处理`);    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');    
+  }    
 });
         // 监听拖拽状态 - v5.2.0优化: 在拖拽期间暂停弹幕更新以减少闪烁
         artPlayerRef.current.on('video:seeking', () => {
